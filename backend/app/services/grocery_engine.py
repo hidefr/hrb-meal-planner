@@ -49,10 +49,13 @@ def guess_category(ingredient_name: str) -> str:
 def sync_grocery_list_from_meal_plan(meal_plan: MealPlan, current_grocery: GroceryList) -> GroceryList:
     """
     Consolidates ingredients from all recipes in the meal plan while
-    preserving manually added items and user check-states where possible.
+    preserving manually added items, user check-states, store tags, and partial quantities.
     """
     manual_items = [item for item in current_grocery.items if item.manual]
     existing_checked = {item.name.lower().strip(): item.checked for item in current_grocery.items}
+    existing_stores = {item.name.lower().strip(): item.store for item in current_grocery.items if item.store}
+    existing_have = {item.name.lower().strip(): item.have_amount for item in current_grocery.items if item.have_amount is not None}
+    existing_notes = {item.name.lower().strip(): item.notes for item in current_grocery.items if item.notes}
     
     # Aggregate recipe ingredients
     aggregated: Dict[str, GroceryItem] = {}
@@ -66,22 +69,27 @@ def sync_grocery_list_from_meal_plan(meal_plan: MealPlan, current_grocery: Groce
             key = (clean_name.lower(), ing.unit.lower())
 
             if key in aggregated:
-                aggregated[key].amount += ing.amount
+                aggregated[key].amount = round(aggregated[key].amount + ing.amount, 2)
                 if recipe_title not in aggregated[key].recipe_references:
                     aggregated[key].recipe_references.append(recipe_title)
             else:
                 cat = ing.category if ing.category and ing.category != "Pantry" else guess_category(clean_name)
-                # Check if user already had this checked
                 was_checked = existing_checked.get(clean_name.lower(), False)
+                store_tag = existing_stores.get(clean_name.lower(), None)
+                have_val = existing_have.get(clean_name.lower(), None)
+                prior_notes = existing_notes.get(clean_name.lower(), ing.notes)
+
                 aggregated[key] = GroceryItem(
                     name=clean_name,
                     amount=round(ing.amount, 2),
+                    have_amount=have_val,
                     unit=ing.unit,
                     category=cat,
                     checked=was_checked,
                     recipe_references=[recipe_title],
                     manual=False,
-                    notes=ing.notes
+                    notes=prior_notes,
+                    store=store_tag
                 )
 
     new_items = list(aggregated.values()) + manual_items

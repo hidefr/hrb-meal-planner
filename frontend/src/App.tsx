@@ -13,6 +13,7 @@ import {
   deleteGroceryItem,
   addGroceryItem,
   updateGroceryItemStore,
+  updateGroceryItemQuantity,
   clearCheckedGroceryItems,
   syncGroceryList,
   aiSuggestMealForDay,
@@ -37,6 +38,19 @@ export const App: React.FC = () => {
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings>({
     stores: ["Amazon", "Fred Meyer", "Trader Joe's", "Safeway", "New Seasons"],
+    available_preferences: [
+      "Quick meals under 30 mins",
+      "One-pot or sheet-pan meals",
+      "Healthy & fresh veggies",
+      "High protein",
+      "Low carb",
+      "Comfort food",
+      "Gluten-free friendly",
+      "Dairy-free friendly",
+      "Kid-friendly",
+      "Budget friendly",
+      "Minimal cleanup"
+    ],
     preferences: ["Quick meals under 30 mins", "One-pot or sheet-pan meals", "Healthy & fresh veggies"],
     servings: 2,
     custom_notes: ""
@@ -159,6 +173,16 @@ export const App: React.FC = () => {
 
   const handleUpdateGroceryStore = async (id: string, store: string | null) => {
     const updated = await updateGroceryItemStore(id, store);
+    setGroceryList(updated);
+  };
+
+  const handleUpdateGroceryQuantity = async (
+    id: string,
+    amount?: number,
+    haveAmount?: number | null,
+    notes?: string
+  ) => {
+    const updated = await updateGroceryItemQuantity(id, amount, haveAmount, notes);
     setGroceryList(updated);
   };
 
@@ -287,6 +311,7 @@ export const App: React.FC = () => {
             onClearChecked={handleClearCheckedGrocery}
             onOpenClearedHistory={() => setIsClearedGroceryOpen(true)}
             onSync={handleSyncGrocery}
+            onUpdateQuantity={handleUpdateGroceryQuantity}
           />
         )}
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Check, CheckSquare, Square, Trash2, Plus, RefreshCw, Copy,
-  ShoppingBag, Store, RotateCcw, Filter
+  Check, CheckSquare, Square, MinusSquare, Trash2, Plus, RefreshCw, Copy,
+  ShoppingBag, Store, RotateCcw, Filter, Edit3, X
 } from 'lucide-react';
 import { GroceryList, GroceryItem } from '../types';
 import { copyToClipboard } from '../services/api';
@@ -12,6 +12,7 @@ interface GroceryListViewProps {
   onToggleItem: (id: string) => void;
   onDeleteItem: (id: string) => void;
   onUpdateStore: (id: string, store: string | null) => void;
+  onUpdateQuantity: (id: string, amount?: number, have_amount?: number | null, notes?: string) => void;
   onOpenAddModal: () => void;
   onClearChecked: () => void;
   onOpenClearedHistory: () => void;
@@ -44,6 +45,7 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
   onToggleItem,
   onDeleteItem,
   onUpdateStore,
+  onUpdateQuantity,
   onOpenAddModal,
   onClearChecked,
   onOpenClearedHistory,
@@ -51,6 +53,10 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
+  const [adjustingItemId, setAdjustingItemId] = useState<string | null>(null);
+  const [adjustHaveInput, setAdjustHaveInput] = useState<string>('');
+  const [adjustTotalInput, setAdjustTotalInput] = useState<string>('');
+  const [adjustNotesInput, setAdjustNotesInput] = useState<string>('');
 
   const defaultStores = stores && stores.length > 0 ? stores : [
     "Amazon",
@@ -87,7 +93,10 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
         text += `*${cat.toUpperCase()}*\n`;
         items.forEach(item => {
           const storeTag = item.store ? ` [@${item.store}]` : '';
-          text += `[${item.checked ? 'x' : ' '}] ${item.amount} ${item.unit} ${item.name}${storeTag}`;
+          const partialNote = item.have_amount && item.have_amount > 0 && !item.checked
+            ? ` (Have ${item.have_amount} of ${item.amount})`
+            : '';
+          text += `[${item.checked ? 'x' : ' '}] ${item.amount} ${item.unit} ${item.name}${storeTag}${partialNote}`;
           if (item.notes) text += ` (${item.notes})`;
           text += '\n';
         });
@@ -102,6 +111,34 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
     }
   };
 
+  const handleOpenAdjust = (e: React.MouseEvent, item: GroceryItem) => {
+    e.stopPropagation();
+    setAdjustingItemId(item.id);
+    setAdjustHaveInput(item.have_amount != null ? String(item.have_amount) : '');
+    setAdjustTotalInput(String(item.amount));
+    setAdjustNotesInput(item.notes || '');
+  };
+
+  const handleSaveAdjust = (itemId: string) => {
+    const total = parseFloat(adjustTotalInput);
+    const have = adjustHaveInput.trim() !== '' ? parseFloat(adjustHaveInput) : null;
+    onUpdateQuantity(
+      itemId,
+      !isNaN(total) && total > 0 ? total : undefined,
+      have !== null && !isNaN(have) ? have : null,
+      adjustNotesInput
+    );
+    setAdjustingItemId(null);
+  };
+
+  const handleQuickStepHave = (e: React.MouseEvent, item: GroceryItem, delta: number) => {
+    e.stopPropagation();
+    const currentHave = item.have_amount || 0;
+    const step = item.amount <= 2 ? 0.5 : 1;
+    const newHave = Math.max(0, Math.min(item.amount, Math.round((currentHave + delta * step) * 10) / 10));
+    onUpdateQuantity(item.id, undefined, newHave > 0 ? newHave : null, undefined);
+  };
+
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-24 md:pb-8">
       {/* Header card with progress */}
@@ -113,7 +150,7 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
               <span>Grocery List</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Consolidated from your meal plan and organized by store aisle & store tags
+              Consolidated from your meal plan with partial pantry tracking & store tags
             </p>
           </div>
 
@@ -299,116 +336,255 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
 
                 {/* Items */}
                 <ul className="divide-y divide-slate-100">
-                  {items.map(item => (
-                    <li
-                      key={item.id}
-                      className={`p-3 sm:px-4 flex flex-col gap-2 transition ${
-                        item.checked ? 'bg-slate-50/60 opacity-60' : 'hover:bg-slate-50/40'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        {/* Checkbox & Name */}
-                        <div
-                          onClick={() => onToggleItem(item.id)}
-                          className="flex items-start gap-3 cursor-pointer flex-1 select-none pr-2"
-                        >
-                          <button
-                            type="button"
-                            className="shrink-0 text-emerald-600 focus:outline-hidden mt-0.5"
+                  {items.map(item => {
+                    const isPartial = item.have_amount != null && item.have_amount > 0 && item.have_amount < item.amount;
+                    const remainingNeed = isPartial ? Math.round((item.amount - (item.have_amount || 0)) * 10) / 10 : item.amount;
+                    const isAdjusting = adjustingItemId === item.id;
+
+                    return (
+                      <li
+                        key={item.id}
+                        className={`p-3 sm:px-4 flex flex-col gap-2 transition ${
+                          item.checked
+                            ? 'bg-slate-50/60 opacity-60'
+                            : isPartial
+                            ? 'bg-amber-50/20'
+                            : 'hover:bg-slate-50/40'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          {/* Checkbox & Name */}
+                          <div
+                            onClick={() => onToggleItem(item.id)}
+                            className="flex items-start gap-3 cursor-pointer flex-1 select-none pr-2"
                           >
-                            {item.checked ? (
-                              <CheckSquare className="w-5 h-5 fill-emerald-100" />
-                            ) : (
-                              <Square className="w-5 h-5 text-slate-300 hover:text-slate-400" />
-                            )}
-                          </button>
-
-                          <div className="flex-1 min-w-0">
-                            <span
-                              className={`text-sm font-medium ${
-                                item.checked
-                                  ? 'line-through text-slate-400'
-                                  : 'text-slate-900 font-semibold'
-                              }`}
+                            <button
+                              type="button"
+                              className="shrink-0 focus:outline-hidden mt-0.5"
                             >
-                              {item.name}
-                            </span>
-
-                            {/* Reference notes - NOT cut off; wraps properly so you can see all recipes */}
-                            <div className="mt-0.5 space-y-0.5">
-                              {item.manual ? (
-                                <span className="inline-block text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-medium">
-                                  Added manually
-                                </span>
+                              {item.checked ? (
+                                <CheckSquare className="w-5 h-5 text-emerald-600 fill-emerald-100" />
+                              ) : isPartial ? (
+                                <MinusSquare className="w-5 h-5 text-amber-500 fill-amber-50" />
                               ) : (
-                                item.recipe_references && item.recipe_references.length > 0 && (
-                                  <p className="text-[11px] text-slate-500 leading-tight break-words">
-                                    <span className="font-semibold text-slate-600">For:</span> {item.recipe_references.join(' • ')}
-                                  </p>
-                                )
+                                <Square className="w-5 h-5 text-slate-300 hover:text-slate-400" />
                               )}
-                              {item.notes && (
-                                <span className="inline-block text-[11px] text-slate-400 italic">
-                                  ({item.notes})
+                            </button>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-sm font-semibold ${
+                                    item.checked
+                                      ? 'line-through text-slate-400'
+                                      : 'text-slate-900'
+                                  }`}
+                                >
+                                  {item.name}
                                 </span>
-                              )}
+
+                                {/* Partial status badge */}
+                                {isPartial && !item.checked && (
+                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                                    <span>Have {item.have_amount} of {item.amount}</span>
+                                    <span className="text-amber-700 font-semibold">• Need {remainingNeed} more</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Reference notes - NOT cut off; wraps cleanly so all meals are visible */}
+                              <div className="mt-0.5 space-y-0.5">
+                                {item.manual ? (
+                                  <span className="inline-block text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-medium">
+                                    Added manually
+                                  </span>
+                                ) : (
+                                  item.recipe_references && item.recipe_references.length > 0 && (
+                                    <p className="text-[11px] text-slate-500 leading-tight break-words">
+                                      <span className="font-semibold text-slate-600">For:</span> {item.recipe_references.join(' • ')}
+                                    </p>
+                                  )
+                                )}
+                                {item.notes && (
+                                  <span className="inline-block text-[11px] text-slate-400 italic">
+                                    ({item.notes})
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Quantity & Actions */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Quantity pill (clickable to adjust partial) */}
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenAdjust(e, item)}
+                                className="font-mono text-xs font-semibold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 flex items-center gap-1 transition cursor-pointer"
+                                title="Click to adjust quantity or partial have"
+                              >
+                                <span>{item.amount} {item.unit}</span>
+                                <Edit3 className="w-3 h-3 text-slate-400" />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => onDeleteItem(item.id)}
+                              className="p-1.5 text-slate-300 hover:text-rose-600 rounded-lg transition cursor-pointer"
+                              title="Delete item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
 
-                        {/* Quantity & Delete */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 text-slate-700">
-                            {item.amount} {item.unit}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteItem(item.id)}
-                            className="p-1.5 text-slate-300 hover:text-rose-600 rounded-lg transition cursor-pointer"
-                            title="Delete item"
+                        {/* Inline Adjust Dialog if open for this item */}
+                        {isAdjusting && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-8 p-3 rounded-2xl bg-slate-50 border border-emerald-200 space-y-2 animate-fadeIn"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                              <span>Adjust Quantity & Partial Pantry</span>
+                              <button
+                                type="button"
+                                onClick={() => setAdjustingItemId(null)}
+                                className="text-slate-400 hover:text-slate-600"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">
+                                  Total Needed:
+                                </label>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={adjustTotalInput}
+                                    onChange={(e) => setAdjustTotalInput(e.target.value)}
+                                    className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                                  />
+                                  <span className="text-slate-400 text-[11px] font-mono">{item.unit}</span>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">
+                                  Already Have:
+                                </label>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    placeholder="0"
+                                    value={adjustHaveInput}
+                                    onChange={(e) => setAdjustHaveInput(e.target.value)}
+                                    className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                                  />
+                                  <span className="text-slate-400 text-[11px] font-mono">{item.unit}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1">
+                              <span className="text-[10px] text-slate-400">
+                                Tip: If you have 1 of 2, enter 1 in "Already Have"
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setAdjustingItemId(null)}
+                                  className="px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-200 rounded-lg"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveAdjust(item.id)}
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-2xs"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Store Selector Chips & Quick Partial Steppers */}
+                        <div className="pl-8 pt-0.5 flex items-center justify-between gap-2 flex-wrap">
+                          {/* Store chips */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-slate-400 font-medium mr-1 flex items-center gap-0.5">
+                              <Store className="w-3 h-3 text-slate-400" />
+                              <span>Store:</span>
+                            </span>
+
+                            {defaultStores.map((storeName) => {
+                              const isSelected = item.store?.toLowerCase() === storeName.toLowerCase();
+                              const colors = STORE_COLORS[storeName] || {
+                                bg: "bg-slate-100",
+                                text: "text-slate-800",
+                                border: "border-slate-300"
+                              };
+
+                              return (
+                                <button
+                                  key={storeName}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onUpdateStore(item.id, isSelected ? null : storeName);
+                                  }}
+                                  className={`text-[10px] px-2 py-0.5 rounded-lg border font-semibold transition cursor-pointer ${
+                                    isSelected
+                                      ? `${colors.bg} ${colors.text} ${colors.border} ring-1 ring-emerald-500 shadow-2xs`
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                  title={isSelected ? `Tap to remove ${storeName} tag` : `Tag for ${storeName}`}
+                                >
+                                  {storeName}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Quick Have +/- Stepper */}
+                          {!item.checked && item.amount > 1 && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                              <span>Have in pantry:</span>
+                              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleQuickStepHave(e, item, -1)}
+                                  className="px-1.5 py-0.5 hover:bg-slate-100 text-slate-600 font-bold"
+                                  title="Decrease amount you have"
+                                >
+                                  -
+                                </button>
+                                <span className="px-1.5 font-bold font-mono text-emerald-800">
+                                  {item.have_amount || 0}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleQuickStepHave(e, item, 1)}
+                                  className="px-1.5 py-0.5 hover:bg-slate-100 text-slate-600 font-bold"
+                                  title="Increase amount you have"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Store Selector Chips per item */}
-                      <div className="pl-8 pt-1 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] text-slate-400 font-medium mr-1 flex items-center gap-0.5">
-                          <Store className="w-3 h-3 text-slate-400" />
-                          <span>Store:</span>
-                        </span>
-
-                        {defaultStores.map((storeName) => {
-                          const isSelected = item.store?.toLowerCase() === storeName.toLowerCase();
-                          const colors = STORE_COLORS[storeName] || {
-                            bg: "bg-slate-100",
-                            text: "text-slate-800",
-                            border: "border-slate-300"
-                          };
-
-                          return (
-                            <button
-                              key={storeName}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onUpdateStore(item.id, isSelected ? null : storeName);
-                              }}
-                              className={`text-[10px] px-2 py-0.5 rounded-lg border font-semibold transition cursor-pointer ${
-                                isSelected
-                                  ? `${colors.bg} ${colors.text} ${colors.border} ring-1 ring-emerald-500 shadow-2xs`
-                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-700 hover:bg-slate-50'
-                              }`}
-                              title={isSelected ? `Tap to remove ${storeName} tag` : `Tag for ${storeName}`}
-                            >
-                              {storeName}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

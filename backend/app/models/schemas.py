@@ -57,6 +57,7 @@ class GroceryItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     amount: float = 1.0
+    have_amount: Optional[float] = None # How much we already have (partial / half used)
     unit: str = "item"
     category: str = "Pantry"
     checked: bool = False
@@ -69,6 +70,7 @@ class ClearedGroceryItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     amount: float = 1.0
+    have_amount: Optional[float] = None
     unit: str = "item"
     category: str = "Pantry"
     store: Optional[str] = None
@@ -112,6 +114,16 @@ class UserSettings(BaseModel):
         "Safeway",
         "New Seasons"
     ])
+    available_preferences: List[str] = Field(default_factory=lambda: [
+        "Quick meals under 30 mins",
+        "One-pot or sheet-pan meals",
+        "Healthy & fresh veggies",
+        "High protein",
+        "Low-carb comfort",
+        "Budget-friendly",
+        "Kid-friendly",
+        "Comfort food"
+    ])
     preferences: List[str] = Field(default_factory=lambda: [
         "Quick meals under 30 mins",
         "One-pot or sheet-pan meals",
@@ -147,3 +159,9 @@ class ApplyHistoryMealRequest(BaseModel):
 
 class UpdateStoreRequest(BaseModel):
     store: Optional[str] = None
+
+class UpdateItemQuantityRequest(BaseModel):
+    amount: Optional[float] = None
+    have_amount: Optional[float] = None
+    notes: Optional[str] = None
+

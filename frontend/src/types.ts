@@ -58,6 +58,7 @@ export interface GroceryItem {
   id: string;
   name: string;
   amount: number;
+  have_amount?: number | null;
   unit: string;
   category: string;
   checked: boolean;
@@ -71,6 +72,7 @@ export interface ClearedGroceryItem {
   id: string;
   name: string;
   amount: number;
+  have_amount?: number | null;
   unit: string;
   category: string;
   store?: string | null;
@@ -111,6 +113,7 @@ export interface Conversation {
 
 export interface UserSettings {
   stores: string[];
+  available_preferences?: string[];
   preferences: string[];
   servings: number;
   custom_notes: string;

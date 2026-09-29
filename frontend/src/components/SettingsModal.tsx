@@ -8,7 +8,7 @@ interface SettingsModalProps {
   onSave: (updated: UserSettings) => Promise<void>;
 }
 
-const COMMON_PREFERENCES = [
+const DEFAULT_AVAILABLE = [
   "Quick meals under 30 mins",
   "One-pot or sheet-pan meals",
   "Healthy & fresh veggies",
@@ -17,7 +17,6 @@ const COMMON_PREFERENCES = [
   "Budget-friendly",
   "Kid-friendly",
   "Gluten-free friendly",
-  "Vegetarian",
   "Comfort food"
 ];
 
@@ -26,8 +25,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [stores, setStores] = useState<string[]>([...settings.stores]);
-  const [preferences, setPreferences] = useState<string[]>([...settings.preferences]);
+  const [stores, setStores] = useState<string[]>([...(settings.stores || [])]);
+
+  // Combine initial available preferences
+  const initialAvailable = Array.from(new Set([
+    ...(settings.available_preferences || DEFAULT_AVAILABLE),
+    ...(settings.preferences || [])
+  ]));
+
+  const [availablePrefs, setAvailablePrefs] = useState<string[]>(initialAvailable);
+  const [activePrefs, setActivePrefs] = useState<string[]>([...(settings.preferences || [])]);
   const [servings, setServings] = useState<number>(settings.servings || 2);
   const [customNotes, setCustomNotes] = useState<string>(settings.custom_notes || '');
   const [newStoreInput, setNewStoreInput] = useState('');
@@ -48,19 +55,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTogglePref = (pref: string) => {
-    if (preferences.includes(pref)) {
-      setPreferences(preferences.filter(p => p !== pref));
+    if (activePrefs.includes(pref)) {
+      setActivePrefs(activePrefs.filter(p => p !== pref));
     } else {
-      setPreferences([...preferences, pref]);
+      setActivePrefs([...activePrefs, pref]);
     }
   };
 
   const handleAddCustomPref = () => {
     const trimmed = newPrefInput.trim();
-    if (trimmed && !preferences.includes(trimmed)) {
-      setPreferences([...preferences, trimmed]);
-      setNewPrefInput('');
+    if (!trimmed) return;
+
+    // 1. Add to available preferences if not already there
+    if (!availablePrefs.some(p => p.toLowerCase() === trimmed.toLowerCase())) {
+      setAvailablePrefs(prev => [...prev, trimmed]);
     }
+
+    // 2. Immediately mark as active so it drops in active
+    if (!activePrefs.some(p => p.toLowerCase() === trimmed.toLowerCase())) {
+      setActivePrefs(prev => [...prev, trimmed]);
+    }
+
+    setNewPrefInput('');
+  };
+
+  const handleRemovePrefOption = (e: React.MouseEvent, prefToRemove: string) => {
+    e.stopPropagation();
+    setAvailablePrefs(prev => prev.filter(p => p !== prefToRemove));
+    setActivePrefs(prev => prev.filter(p => p !== prefToRemove));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +91,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     try {
       await onSave({
         stores,
-        preferences,
+        available_preferences: availablePrefs,
+        preferences: activePrefs,
         servings,
         custom_notes: customNotes
       });
@@ -96,12 +119,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Preferences & Stores</h2>
-              <p className="text-xs text-slate-500">Tailor instant AI suggestions and grocery options for your home</p>
+              <p className="text-xs text-slate-500">Configure 1-click AI meal suggestions and grocery store tagging</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition"
+            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -109,6 +132,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* AI Cooking Preferences (1-Click Suggestions) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>AI Meal Preferences ({activePrefs.length} Active)</span>
+              </label>
+              <span className="text-[11px] text-emerald-700 font-semibold">Tap to toggle on/off</span>
+            </div>
+            <p className="text-xs text-slate-500">
+              When you click "AI Suggestion" for any day or "AI Plan Entire Week", TasteCraft immediately generates meals tailored to all active preferences:
+            </p>
+
+            {/* Grid of Available Preferences */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {availablePrefs.map((pref) => {
+                const isActive = activePrefs.includes(pref);
+                return (
+                  <div
+                    key={pref}
+                    onClick={() => handleTogglePref(pref)}
+                    className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between border transition cursor-pointer select-none group ${
+                      isActive
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-semibold shadow-2xs'
+                        : 'bg-slate-50/70 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-1">
+                      <div className={`w-4 h-4 rounded-md flex items-center justify-center border shrink-0 ${
+                        isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'
+                      }`}>
+                        {isActive && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="truncate">{pref}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemovePrefOption(e, pref)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 p-0.5 rounded transition shrink-0 ml-1"
+                      title={`Remove "${pref}" preference option`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add Custom Preference Input */}
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                value={newPrefInput}
+                onChange={(e) => setNewPrefInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomPref();
+                  }
+                }}
+                placeholder="Add new preference (e.g. Air fryer, No seafood, Thai flavors)..."
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomPref}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add & Activate</span>
+              </button>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
           {/* Grocery Stores */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -116,10 +216,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Store className="w-4 h-4 text-emerald-600" />
                 <span>Customizable Grocery Stores</span>
               </label>
-              <span className="text-[11px] text-slate-400">Used for item tagging</span>
+              <span className="text-[11px] text-slate-400">{stores.length} Stores</span>
             </div>
             <p className="text-xs text-slate-500">
-              Select or add your regular stores so you can tag each item on your phone:
+              Stores appear as quick-tap boxes next to each grocery item on your phone:
             </p>
 
             {/* Store chips */}
@@ -133,7 +233,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRemoveStore(store)}
-                    className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded transition"
+                    className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded transition cursor-pointer"
                     title={`Remove ${store}`}
                   >
                     <X className="w-3 h-3" />
@@ -155,88 +255,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }
                 }}
                 placeholder="Add store (e.g. Costco, H-Mart)..."
-                className="flex-1 text-xs px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
               />
               <button
                 type="button"
                 onClick={handleAddStore}
-                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-semibold flex items-center gap-1 border border-slate-200 transition cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-bold flex items-center gap-1 border border-slate-200 transition cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
+                <span>Add Store</span>
               </button>
             </div>
           </div>
 
           <hr className="border-slate-100" />
 
-          {/* AI Cooking Preferences */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-emerald-600" />
-                <span>AI Meal Preferences</span>
-              </label>
-              <span className="text-[11px] text-slate-400">Drives 1-click suggestions</span>
-            </div>
-            <p className="text-xs text-slate-500">
-              When you click "AI Suggestion" for dinner or "AI Plan Entire Week", the AI uses these preferences:
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              {COMMON_PREFERENCES.map((pref) => {
-                const selected = preferences.includes(pref);
-                return (
-                  <button
-                    type="button"
-                    key={pref}
-                    onClick={() => handleTogglePref(pref)}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium text-left flex items-center justify-between border transition cursor-pointer ${
-                      selected
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold'
-                        : 'bg-slate-50/70 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{pref}</span>
-                    {selected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom preference tag */}
-            <div className="flex gap-2 pt-1">
-              <input
-                type="text"
-                value={newPrefInput}
-                onChange={(e) => setNewPrefInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCustomPref();
-                  }
-                }}
-                placeholder="Add custom preference (e.g. No seafood, Air fryer)..."
-                className="flex-1 text-xs px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
-              />
-              <button
-                type="button"
-                onClick={handleAddCustomPref}
-                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-semibold flex items-center gap-1 border border-slate-200 transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
-              </button>
-            </div>
-          </div>
-
-          <hr className="border-slate-100" />
-
-          {/* Household Custom Instructions */}
+          {/* Household Custom Notes */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <ChefHat className="w-4 h-4 text-emerald-600" />
-              <span>Special Household Notes</span>
+              <span>Special Household Notes & Allergies</span>
             </label>
             <textarea
               rows={3}

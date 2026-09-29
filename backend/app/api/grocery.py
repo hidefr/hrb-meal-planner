@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional, List
 from pydantic import BaseModel
-from app.models.schemas import GroceryList, GroceryItem, ClearedGroceryItem, UpdateStoreRequest
+from app.models.schemas import (
+    GroceryList, GroceryItem, ClearedGroceryItem,
+    UpdateStoreRequest, UpdateItemQuantityRequest
+)
 from app.db.storage import storage
 from app.services.grocery_engine import sync_grocery_list_from_meal_plan, guess_category
 
@@ -72,6 +75,16 @@ async def toggle_item(item_id: str):
 @router.patch("/items/{item_id}/store", response_model=GroceryList)
 async def update_item_store(item_id: str, req: UpdateStoreRequest):
     storage.update_grocery_item_store(item_id, req.store)
+    return storage.get_grocery_list()
+
+@router.patch("/items/{item_id}/quantity", response_model=GroceryList)
+async def update_item_quantity(item_id: str, req: UpdateItemQuantityRequest):
+    storage.update_grocery_item_quantity(
+        item_id=item_id,
+        amount=req.amount,
+        have_amount=req.have_amount,
+        notes=req.notes
+    )
     return storage.get_grocery_list()
 
 @router.delete("/items/{item_id}", response_model=GroceryList)

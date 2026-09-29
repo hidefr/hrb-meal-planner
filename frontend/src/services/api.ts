@@ -191,6 +191,21 @@ export async function updateGroceryItemStore(itemId: string, store: string | nul
   return res.json();
 }
 
+export async function updateGroceryItemQuantity(
+  itemId: string,
+  amount?: number,
+  have_amount?: number | null,
+  notes?: string
+): Promise<GroceryList> {
+  const res = await fetch(`${API_BASE}/grocery/items/${itemId}/quantity`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, have_amount, notes }),
+  });
+  if (!res.ok) throw new Error('Failed to update item quantity');
+  return res.json();
+}
+
 export async function deleteGroceryItem(itemId: string): Promise<GroceryList> {
   const res = await fetch(`${API_BASE}/grocery/items/${itemId}`, {
     method: 'DELETE',

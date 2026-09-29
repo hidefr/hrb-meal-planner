@@ -82,6 +82,21 @@ class Storage:
         data = self._read_raw_json(self.settings_file)
         if data:
             try:
+                if "available_preferences" not in data:
+                    data["available_preferences"] = [
+                        "Quick meals under 30 mins",
+                        "One-pot or sheet-pan meals",
+                        "Healthy & fresh veggies",
+                        "High protein",
+                        "Low-carb comfort",
+                        "Budget-friendly",
+                        "Kid-friendly",
+                        "Comfort food"
+                    ]
+                    # Also include any active preferences not in the default list
+                    for p in data.get("preferences", []):
+                        if p not in data["available_preferences"]:
+                            data["available_preferences"].append(p)
                 return UserSettings(**data)
             except Exception:
                 pass
@@ -216,6 +231,34 @@ class Storage:
         for item in g_list.items:
             if item.id == item_id:
                 item.store = store
+                self.save_grocery_list(g_list)
+                return item
+        return None
+
+    def update_grocery_item_quantity(
+        self,
+        item_id: str,
+        amount: Optional[float] = None,
+        have_amount: Optional[float] = None,
+        notes: Optional[str] = None
+    ) -> Optional[GroceryItem]:
+        g_list = self.get_grocery_list()
+        for item in g_list.items:
+            if item.id == item_id:
+                if amount is not None:
+                    item.amount = round(amount, 2)
+                if have_amount is not None:
+                    item.have_amount = round(have_amount, 2) if have_amount > 0 else None
+                if notes is not None:
+                    item.notes = notes.strip() or None
+
+                # Automatically update checked state based on have_amount
+                if item.have_amount is not None and item.have_amount >= item.amount:
+                    item.checked = True
+                elif item.have_amount is None or item.have_amount == 0:
+                    # Not fully acquired
+                    pass
+
                 self.save_grocery_list(g_list)
                 return item
         return None
