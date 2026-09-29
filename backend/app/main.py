@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.api import chat, meal_plan, grocery, media
+from app.api import chat, meal_plan, grocery, media, settings as settings_api
 from app.services.telegram_bot import telegram_service
 
 logging.basicConfig(
@@ -51,6 +51,7 @@ app.include_router(chat.router)
 app.include_router(meal_plan.router)
 app.include_router(grocery.router)
 app.include_router(media.router)
+app.include_router(settings_api.router)
 
 @app.get("/api/health")
 async def health_check():

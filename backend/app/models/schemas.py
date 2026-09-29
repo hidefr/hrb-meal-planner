@@ -45,6 +45,14 @@ class MealPlan(BaseModel):
     notes: Optional[str] = None
     updated_at: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
 
+class MealHistoryEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    recipe: Recipe
+    first_planned: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
+    last_planned: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
+    times_planned: int = 1
+    pinned: bool = False
+
 class GroceryItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -55,6 +63,17 @@ class GroceryItem(BaseModel):
     recipe_references: List[str] = Field(default_factory=list)
     manual: bool = False
     notes: Optional[str] = None
+    store: Optional[str] = None # e.g. "Amazon", "Fred Meyer", "Trader Joe's", "Safeway", "New Seasons"
+
+class ClearedGroceryItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    amount: float = 1.0
+    unit: str = "item"
+    category: str = "Pantry"
+    store: Optional[str] = None
+    notes: Optional[str] = None
+    cleared_at: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
 
 class GroceryList(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -70,12 +89,61 @@ class ChatMessage(BaseModel):
     tool_call_id: Optional[str] = None
     applied_actions: Optional[List[str]] = None # Human-readable badges like ["Updated Tuesday Dinner", "Added 5 items to grocery list"]
 
+class Conversation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str = "New Conversation"
+    created_at: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
+    messages: List[ChatMessage] = Field(default_factory=list)
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    message_count: int
+    last_message_preview: str
+
+class UserSettings(BaseModel):
+    stores: List[str] = Field(default_factory=lambda: [
+        "Amazon",
+        "Fred Meyer",
+        "Trader Joe's",
+        "Safeway",
+        "New Seasons"
+    ])
+    preferences: List[str] = Field(default_factory=lambda: [
+        "Quick meals under 30 mins",
+        "One-pot or sheet-pan meals",
+        "Healthy & fresh veggies"
+    ])
+    servings: int = 2
+    custom_notes: str = ""
+
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
+    conversation_id: str
     actions_performed: List[str] = Field(default_factory=list)
     meal_plan: MealPlan
     grocery_list: GroceryList
+
+class AISuggestDayRequest(BaseModel):
+    day_of_week: str
+    preferences: Optional[List[str]] = None
+    custom_prompt: Optional[str] = None
+
+class AIPlanWeekRequest(BaseModel):
+    preferences: Optional[List[str]] = None
+    custom_prompt: Optional[str] = None
+    overwrite_all: bool = False
+
+class ApplyHistoryMealRequest(BaseModel):
+    day_of_week: str
+    recipe_id: str
+
+class UpdateStoreRequest(BaseModel):
+    store: Optional[str] = None

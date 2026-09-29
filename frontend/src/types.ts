@@ -45,6 +45,15 @@ export interface MealPlan {
   updated_at: string;
 }
 
+export interface MealHistoryEntry {
+  id: string;
+  recipe: Recipe;
+  first_planned: string;
+  last_planned: string;
+  times_planned: number;
+  pinned: boolean;
+}
+
 export interface GroceryItem {
   id: string;
   name: string;
@@ -55,6 +64,18 @@ export interface GroceryItem {
   recipe_references: string[];
   manual: boolean;
   notes?: string | null;
+  store?: string | null;
+}
+
+export interface ClearedGroceryItem {
+  id: string;
+  name: string;
+  amount: number;
+  unit: string;
+  category: string;
+  store?: string | null;
+  notes?: string | null;
+  cleared_at: string;
 }
 
 export interface GroceryList {
@@ -71,8 +92,33 @@ export interface ChatMessage {
   applied_actions?: string[] | null;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message_preview: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessage[];
+}
+
+export interface UserSettings {
+  stores: string[];
+  preferences: string[];
+  servings: number;
+  custom_notes: string;
+}
+
 export interface ChatResponse {
   reply: string;
+  conversation_id: string;
   actions_performed: string[];
   meal_plan: MealPlan;
   grocery_list: GroceryList;

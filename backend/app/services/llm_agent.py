@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from openai import AsyncOpenAI
 from app.config import settings
 from app.models.schemas import (
@@ -347,4 +347,289 @@ class LLMAgent:
 
         return final_reply, actions_performed, meal_plan, grocery_list
 
+    async def suggest_recipe_for_day(
+        self,
+        day_of_week: str,
+        preferences: Optional[List[str]],
+        current_plan: MealPlan,
+        custom_prompt: Optional[str] = None
+    ) -> Recipe:
+        """
+        Instantly generates a tailored, creative dinner recipe for a specific day based on user preferences.
+        """
+        pref_str = ", ".join(preferences) if preferences else "Fast, fresh, under 35 mins, high quality ingredients"
+        plan_summary = format_meal_plan_summary(current_plan)
+
+        prompt = f"""You are TasteCraft's culinary AI. Generate 1 exciting, delicious dinner recipe for {day_of_week}.
+Household Preferences:
+{pref_str}
+{f'Custom notes: {custom_prompt}' if custom_prompt else ''}
+
+Current meals already on this week's plan:
+{plan_summary}
+
+Requirements:
+1. Provide great variety compared to other planned meals (different protein, cuisine, or style).
+2. Realistic cook times and ingredient measurements (amounts, units like g, tbsp, cup, cloves, can, item).
+3. Return ONLY a single raw JSON object (no markdown, no backticks, no commentary) matching this schema:
+{{
+  "title": "Recipe Title",
+  "description": "Appetizing 1-2 sentence description",
+  "prep_time_mins": 15,
+  "cook_time_mins": 25,
+  "servings": 2,
+  "tags": ["quick", "one-pot", "sheet-pan"],
+  "ingredients": [
+    {{"name": "Salmon fillet", "amount": 2, "unit": "item", "category": "Meat & Seafood", "notes": "skin on"}},
+    {{"name": "Asparagus", "amount": 1, "unit": "bunch", "category": "Produce", "notes": "trimmed"}}
+  ],
+  "instructions": [
+    "Step 1...",
+    "Step 2..."
+  ]
+}}"""
+
+        try:
+            resp = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a professional chef. Output only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.75
+            )
+            raw = resp.choices[0].message.content or ""
+            # Strip markdown if present
+            raw = re.sub(r"^```(?:json)?", "", raw.strip(), flags=re.IGNORECASE)
+            raw = re.sub(r"```$", "", raw.strip())
+            data = json.loads(raw.strip())
+        except Exception as e:
+            logger.warning(f"LLM generation failed for {day_of_week}, using curated fallback: {e}")
+            data = {
+                "title": f"Crispy Lemon Garlic Chicken & Roasted Veggies",
+                "description": "Golden pan-seared chicken with blistered tomatoes, baby spinach, and a bright garlic butter sauce.",
+                "prep_time_mins": 10,
+                "cook_time_mins": 20,
+                "servings": 2,
+                "tags": ["one-pan", "30-min", "high-protein"],
+                "ingredients": [
+                    {"name": "Chicken Thighs", "amount": 1.2, "unit": "lb", "category": "Meat & Seafood", "notes": "boneless skinless"},
+                    {"name": "Cherry Tomatoes", "amount": 1, "unit": "pint", "category": "Produce", "notes": ""},
+                    {"name": "Garlic", "amount": 4, "unit": "cloves", "category": "Produce", "notes": "minced"},
+                    {"name": "Baby Spinach", "amount": 5, "unit": "oz", "category": "Produce", "notes": "fresh"},
+                    {"name": "Lemon", "amount": 1, "unit": "item", "category": "Produce", "notes": "juiced"},
+                    {"name": "Olive Oil", "amount": 2, "unit": "tbsp", "category": "Pantry", "notes": ""},
+                    {"name": "Butter", "amount": 2, "unit": "tbsp", "category": "Dairy & Refrigerated", "notes": ""}
+                ],
+                "instructions": [
+                    "Season chicken thighs generously with salt, pepper, and Italian herbs.",
+                    "Heat olive oil in a large skillet over medium-high heat. Sear chicken for 6-7 mins per side until golden and cooked through. Transfer to a plate.",
+                    "In the same skillet, melt butter and add minced garlic and cherry tomatoes. Sauté for 3 mins until tomatoes begin to blister.",
+                    "Toss in baby spinach and fresh lemon juice. Simmer 1 minute until spinach wilts.",
+                    "Return chicken to the skillet to coat in pan juices and serve hot!"
+                ]
+            }
+
+        # Build Recipe object
+        ingredients = []
+        for ing in data.get("ingredients", []):
+            cat = ing.get("category") or guess_category(ing.get("name", ""))
+            ingredients.append(Ingredient(
+                name=ing.get("name", "Ingredient"),
+                amount=float(ing.get("amount", 1.0)),
+                unit=ing.get("unit", "item"),
+                category=cat,
+                notes=ing.get("notes")
+            ))
+
+        recipe = Recipe(
+            title=data.get("title", f"Delicious {day_of_week} Dinner"),
+            description=data.get("description", ""),
+            prep_time_mins=int(data.get("prep_time_mins", 15)),
+            cook_time_mins=int(data.get("cook_time_mins", 25)),
+            servings=int(data.get("servings", 2)),
+            tags=data.get("tags", []),
+            ingredients=ingredients,
+            instructions=data.get("instructions", [])
+        )
+
+        try:
+            media = await search_recipe_media(recipe.title, recipe.tags)
+            recipe.media_links = media
+        except Exception as e:
+            logger.warning(f"Error enriching media for {recipe.title}: {e}")
+
+        return recipe
+
+    async def plan_entire_week(
+        self,
+        preferences: Optional[List[str]],
+        current_plan: MealPlan,
+        custom_prompt: Optional[str] = None,
+        overwrite_all: bool = False
+    ) -> List[Tuple[str, Recipe]]:
+        """
+        Generates dinner recipes for all empty days (or all 7 days if overwrite_all is True) with balanced variety.
+        """
+        pref_str = ", ".join(preferences) if preferences else "Quick weeknight dinners, diverse cuisines, fresh produce"
+        
+        target_days = []
+        for slot in current_plan.slots:
+            if overwrite_all or not slot.recipe:
+                target_days.append(slot.day_of_week)
+
+        if not target_days:
+            return []
+
+        days_list_str = ", ".join(target_days)
+
+        prompt = f"""You are TasteCraft's culinary AI. Plan creative, varied dinner recipes for the household for these specific days: {days_list_str}.
+Household Preferences:
+{pref_str}
+{f'Custom notes: {custom_prompt}' if custom_prompt else ''}
+
+Requirements:
+1. Provide a balanced variety across the days (e.g. mix chicken, seafood, pasta, sheet-pan, beef, or vegetarian across the days).
+2. Keep ingredients realistic and easy to find.
+3. Return ONLY a single raw JSON array of objects (no markdown, no backticks, no commentary).
+Schema for the array:
+[
+  {{
+    "day_of_week": "Monday",
+    "title": "Recipe Title",
+    "description": "Appetizing description",
+    "prep_time_mins": 15,
+    "cook_time_mins": 25,
+    "servings": 2,
+    "tags": ["quick", "one-pan"],
+    "ingredients": [
+      {{"name": "Ingredient 1", "amount": 1, "unit": "item", "category": "Produce", "notes": ""}}
+    ],
+    "instructions": ["Step 1", "Step 2"]
+  }}
+]"""
+
+        try:
+            resp = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a professional chef. Output only valid JSON array of recipes."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.8
+            )
+            raw = resp.choices[0].message.content or ""
+            raw = re.sub(r"^```(?:json)?", "", raw.strip(), flags=re.IGNORECASE)
+            raw = re.sub(r"```$", "", raw.strip())
+            results_data = json.loads(raw.strip())
+            if isinstance(results_data, dict) and "recipes" in results_data:
+                results_data = results_data["recipes"]
+        except Exception as e:
+            logger.warning(f"LLM week planning failed, falling back to curated options: {e}")
+            results_data = []
+            sample_recipes = [
+                ("Monday", "Sheet Pan Lemon Garlic Salmon with Asparagus", 10, 20, ["sheet-pan", "seafood", "quick"], [
+                    {"name": "Salmon Fillets", "amount": 2, "unit": "item", "category": "Meat & Seafood", "notes": ""},
+                    {"name": "Asparagus", "amount": 1, "unit": "bunch", "category": "Produce", "notes": "trimmed"},
+                    {"name": "Lemon", "amount": 1, "unit": "item", "category": "Produce", "notes": "sliced"},
+                    {"name": "Olive Oil", "amount": 2, "unit": "tbsp", "category": "Pantry", "notes": ""}
+                ]),
+                ("Tuesday", "20-Minute Beef & Broccoli Noodle Stir Fry", 10, 15, ["stir-fry", "quick", "asian"], [
+                    {"name": "Flank Steak", "amount": 1, "unit": "lb", "category": "Meat & Seafood", "notes": "thinly sliced"},
+                    {"name": "Broccoli Florets", "amount": 2, "unit": "cup", "category": "Produce", "notes": ""},
+                    {"name": "Soy Sauce", "amount": 3, "unit": "tbsp", "category": "Pantry", "notes": ""},
+                    {"name": "Udon or Ramen Noodles", "amount": 8, "unit": "oz", "category": "Pantry", "notes": ""}
+                ]),
+                ("Wednesday", "One-Pot Creamy Tuscan Chicken", 10, 25, ["one-pot", "comfort-food"], [
+                    {"name": "Chicken Cutlets", "amount": 1.2, "unit": "lb", "category": "Meat & Seafood", "notes": ""},
+                    {"name": "Sun-Dried Tomatoes", "amount": 0.5, "unit": "cup", "category": "Pantry", "notes": ""},
+                    {"name": "Heavy Cream", "amount": 0.75, "unit": "cup", "category": "Dairy & Refrigerated", "notes": ""},
+                    {"name": "Baby Spinach", "amount": 4, "unit": "oz", "category": "Produce", "notes": ""}
+                ]),
+                ("Thursday", "Crispy Fish Tacos with Lime Crema & Slaw", 15, 15, ["tacos", "mexican", "fresh"], [
+                    {"name": "White Fish Fillets", "amount": 1, "unit": "lb", "category": "Meat & Seafood", "notes": "cod or tilapia"},
+                    {"name": "Corn Tortillas", "amount": 8, "unit": "item", "category": "Bakery", "notes": ""},
+                    {"name": "Shredded Cabbage Slaw", "amount": 2, "unit": "cup", "category": "Produce", "notes": ""},
+                    {"name": "Sour Cream", "amount": 0.5, "unit": "cup", "category": "Dairy & Refrigerated", "notes": ""},
+                    {"name": "Lime", "amount": 2, "unit": "item", "category": "Produce", "notes": ""}
+                ]),
+                ("Friday", "Homemade Cast Iron Skillet Pizza", 15, 20, ["comfort-food", "pizza", "friday-night"], [
+                    {"name": "Pizza Dough", "amount": 1, "unit": "lb", "category": "Bakery", "notes": "store-bought or fresh"},
+                    {"name": "Mozzarella Cheese", "amount": 8, "unit": "oz", "category": "Dairy & Refrigerated", "notes": "shredded"},
+                    {"name": "Pizza Sauce", "amount": 1, "unit": "cup", "category": "Pantry", "notes": ""},
+                    {"name": "Fresh Basil", "amount": 1, "unit": "bunch", "category": "Produce", "notes": ""}
+                ]),
+                ("Saturday", "Grilled Steak with Chimichurri & Sweet Potato Fries", 15, 25, ["steak", "weekend", "fresh"], [
+                    {"name": "Ribeye or Sirloin Steak", "amount": 1.5, "unit": "lb", "category": "Meat & Seafood", "notes": ""},
+                    {"name": "Fresh Parsley", "amount": 1, "unit": "bunch", "category": "Produce", "notes": ""},
+                    {"name": "Sweet Potatoes", "amount": 2, "unit": "item", "category": "Produce", "notes": "sliced into fries"},
+                    {"name": "Red Wine Vinegar", "amount": 2, "unit": "tbsp", "category": "Pantry", "notes": ""}
+                ]),
+                ("Sunday", "Slow-Braised Chicken & Veggie Stew", 15, 45, ["stew", "cozy", "comfort-food"], [
+                    {"name": "Chicken Thighs", "amount": 1.5, "unit": "lb", "category": "Meat & Seafood", "notes": "bone-in"},
+                    {"name": "Carrots", "amount": 4, "unit": "item", "category": "Produce", "notes": "chopped"},
+                    {"name": "Yukon Gold Potatoes", "amount": 3, "unit": "item", "category": "Produce", "notes": "cubed"},
+                    {"name": "Chicken Broth", "amount": 4, "unit": "cup", "category": "Pantry", "notes": ""}
+                ])
+            ]
+            for day in target_days:
+                match = next((s for s in sample_recipes if s[0].lower() == day.lower()), None)
+                if not match:
+                    match = sample_recipes[0]
+                results_data.append({
+                    "day_of_week": day,
+                    "title": match[1],
+                    "description": f"A delightful {day} dinner tailored to your week.",
+                    "prep_time_mins": match[2],
+                    "cook_time_mins": match[3],
+                    "servings": 2,
+                    "tags": match[4],
+                    "ingredients": match[5],
+                    "instructions": [
+                        "Prep and measure all fresh ingredients.",
+                        "Cook main protein and veggies according to standard high heat / sear technique.",
+                        "Combine sauces and seasonings, let simmer to marry flavors.",
+                        "Serve hot and enjoy!"
+                    ]
+                })
+
+        planned_output: List[Tuple[str, Recipe]] = []
+        for item in results_data:
+            day_name = item.get("day_of_week", "").strip().capitalize()
+            if not day_name:
+                continue
+
+            ings = []
+            for raw_ing in item.get("ingredients", []):
+                cat = raw_ing.get("category") or guess_category(raw_ing.get("name", ""))
+                ings.append(Ingredient(
+                    name=raw_ing.get("name", "Ingredient"),
+                    amount=float(raw_ing.get("amount", 1.0)),
+                    unit=raw_ing.get("unit", "item"),
+                    category=cat,
+                    notes=raw_ing.get("notes")
+                ))
+
+            recipe = Recipe(
+                title=item.get("title", f"{day_name} Dinner"),
+                description=item.get("description", ""),
+                prep_time_mins=int(item.get("prep_time_mins", 15)),
+                cook_time_mins=int(item.get("cook_time_mins", 25)),
+                servings=int(item.get("servings", 2)),
+                tags=item.get("tags", []),
+                ingredients=ings,
+                instructions=item.get("instructions", [])
+            )
+
+            try:
+                media = await search_recipe_media(recipe.title, recipe.tags)
+                recipe.media_links = media
+            except Exception as e:
+                logger.warning(f"Error enriching media for {recipe.title}: {e}")
+
+            planned_output.append((day_name, recipe))
+
+        return planned_output
+
 llm_agent = LLMAgent()
+

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
-from app.models.schemas import GroceryList, GroceryItem
+from app.models.schemas import GroceryList, GroceryItem, ClearedGroceryItem, UpdateStoreRequest
 from app.db.storage import storage
 from app.services.grocery_engine import sync_grocery_list_from_meal_plan, guess_category
 
@@ -13,6 +13,7 @@ class AddItemRequest(BaseModel):
     unit: str = "item"
     category: Optional[str] = None
     notes: Optional[str] = None
+    store: Optional[str] = None
 
 @router.get("", response_model=GroceryList)
 async def get_grocery_list():
@@ -41,6 +42,8 @@ async def add_item(req: AddItemRequest):
     for item in grocery.items:
         if item.name.lower() == name_clean.lower() and item.unit.lower() == req.unit.lower():
             item.amount += req.amount
+            if req.store and not item.store:
+                item.store = req.store
             storage.save_grocery_list(grocery)
             return grocery
 
@@ -50,7 +53,8 @@ async def add_item(req: AddItemRequest):
         unit=req.unit,
         category=cat,
         manual=True,
-        notes=req.notes
+        notes=req.notes,
+        store=req.store
     ))
     storage.save_grocery_list(grocery)
     return grocery
@@ -65,6 +69,11 @@ async def toggle_item(item_id: str):
     storage.save_grocery_list(grocery)
     return grocery
 
+@router.patch("/items/{item_id}/store", response_model=GroceryList)
+async def update_item_store(item_id: str, req: UpdateStoreRequest):
+    storage.update_grocery_item_store(item_id, req.store)
+    return storage.get_grocery_list()
+
 @router.delete("/items/{item_id}", response_model=GroceryList)
 async def delete_item(item_id: str):
     grocery = storage.get_grocery_list()
@@ -74,7 +83,17 @@ async def delete_item(item_id: str):
 
 @router.post("/clear-checked", response_model=GroceryList)
 async def clear_checked():
-    grocery = storage.get_grocery_list()
-    grocery.items = [i for i in grocery.items if not i.checked]
-    storage.save_grocery_list(grocery)
-    return grocery
+    return storage.clear_checked_grocery_items()
+
+# ==================== Cleared History Endpoints ====================
+
+@router.get("/cleared-history", response_model=List[ClearedGroceryItem])
+async def get_cleared_history():
+    return storage.get_cleared_grocery_history()
+
+@router.post("/cleared-history/{cleared_id}/restore", response_model=GroceryList)
+async def restore_cleared_item(cleared_id: str):
+    restored = storage.restore_cleared_item(cleared_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail="Cleared item not found in history")
+    return storage.get_grocery_list()

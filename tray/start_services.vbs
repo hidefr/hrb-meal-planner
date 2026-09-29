@@ -1,14 +1,15 @@
 ' TasteCraft - Silent Background Service Starter
 Option Explicit
-Dim sh, fso, scriptDir, projectRoot, pythonExe, cmd
+Dim sh, fso, scriptDir, projectRoot, backendDir, pythonExe, runCmd
 
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
 projectRoot = fso.GetParentFolderName(scriptDir)
-pythonExe = projectRoot & "\backend\.venv\Scripts\python.exe"
+backendDir = projectRoot & "\backend"
+pythonExe = backendDir & "\.venv\Scripts\python.exe"
 
-' Launch detached background python process using Start-Process with WindowStyle Hidden
-cmd = "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""Start-Process -FilePath '" & pythonExe & "' -ArgumentList 'run.py' -WorkingDirectory '" & projectRoot & "\backend' -WindowStyle Hidden"""
-sh.Run cmd, 0, True
+sh.CurrentDirectory = backendDir
+runCmd = Chr(34) & pythonExe & Chr(34) & " run.py"
+sh.Run runCmd, 0, False

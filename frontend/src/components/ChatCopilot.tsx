@@ -1,11 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Trash2, Bot, User, CheckCircle2, ArrowRight, Mic, MicOff } from 'lucide-react';
-import { ChatMessage, MealPlan, GroceryList } from '../types';
-import { sendChatMessage, clearChatHistory } from '../services/api';
+import {
+  Send, Sparkles, Trash2, Bot, User, CheckCircle2, ArrowRight,
+  Mic, MicOff, MessageSquare, Plus, ChevronDown, Edit2, Check
+} from 'lucide-react';
+import { ChatMessage, MealPlan, GroceryList, ConversationSummary, Conversation } from '../types';
+import {
+  sendChatMessage,
+  fetchConversations,
+  fetchConversation,
+  createConversation,
+  deleteConversation,
+  renameConversation
+} from '../services/api';
 import { useSpeechRecognition } from '../services/useSpeechRecognition';
 
 interface ChatCopilotProps {
-  messages: ChatMessage[];
   onMessageSent: (newHistory: ChatMessage[], newPlan: MealPlan, newGrocery: GroceryList) => void;
   onRefresh: () => void;
 }
@@ -20,12 +29,18 @@ const QUICK_PROMPTS = [
 ];
 
 export const ChatCopilot: React.FC<ChatCopilotProps> = ({
-  messages,
   onMessageSent,
   onRefresh
 }) => {
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string>('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showConvList, setShowConvList] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { isListening, isSupported, toggleListening, stopListening } = useSpeechRecognition({
@@ -41,6 +56,116 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
     scrollToBottom();
   }, [messages, loading]);
 
+  // Load conversations on mount
+  const loadConversations = async () => {
+    try {
+      const list = await fetchConversations();
+      setConversations(list);
+      if (list.length > 0) {
+        const firstId = list[0].id;
+        setActiveConvId(firstId);
+        const fullConv = await fetchConversation(firstId);
+        setMessages(fullConv.messages);
+      } else {
+        const newC = await createConversation();
+        setConversations([{
+          id: newC.id,
+          title: newC.title,
+          created_at: newC.created_at,
+          updated_at: newC.updated_at,
+          message_count: 0,
+          last_message_preview: "New chat"
+        }]);
+        setActiveConvId(newC.id);
+        setMessages([]);
+      }
+    } catch (e) {
+      console.error("Failed to load conversations:", e);
+    }
+  };
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  const handleSelectConversation = async (convId: string) => {
+    if (convId === activeConvId) {
+      setShowConvList(false);
+      return;
+    }
+    setActiveConvId(convId);
+    setShowConvList(false);
+    try {
+      const fullConv = await fetchConversation(convId);
+      setMessages(fullConv.messages);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleNewConversation = async () => {
+    try {
+      const newC = await createConversation();
+      setConversations(prev => [
+        {
+          id: newC.id,
+          title: newC.title,
+          created_at: newC.created_at,
+          updated_at: newC.updated_at,
+          message_count: 0,
+          last_message_preview: "New chat"
+        },
+        ...prev
+      ]);
+      setActiveConvId(newC.id);
+      setMessages([]);
+      setShowConvList(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (window.confirm("Delete this conversation?")) {
+      try {
+        await deleteConversation(convId);
+        const remaining = conversations.filter(c => c.id !== convId);
+        setConversations(remaining);
+        if (activeConvId === convId) {
+          if (remaining.length > 0) {
+            handleSelectConversation(remaining[0].id);
+          } else {
+            handleNewConversation();
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleStartRename = (e: React.MouseEvent, conv: ConversationSummary) => {
+    e.stopPropagation();
+    setRenamingId(conv.id);
+    setRenameInput(conv.title);
+  };
+
+  const handleSaveRename = async (convId: string) => {
+    if (!renameInput.trim()) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      await renameConversation(convId, renameInput.trim());
+      setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: renameInput.trim() } : c));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRenamingId(null);
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     if (isListening) {
       stopListening();
@@ -48,97 +173,204 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
     const text = (textToSend || input).trim();
     if (!text || loading) return;
 
-    setInput('');
-    setLoading(true);
-
-    // Optimistically add user message
+    // 1. Immediately show user message on screen!
     const tempUserMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: 'usr-' + Date.now(),
       role: 'user',
       content: text,
       timestamp: new Date().toISOString()
     };
-    const updatedMessages = [...messages, tempUserMsg];
-    // temporarily trigger scroll
-    setTimeout(scrollToBottom, 50);
+
+    setMessages(prev => [...prev, tempUserMsg]);
+    setInput('');
+    setLoading(true);
+    setTimeout(scrollToBottom, 30);
 
     try {
-      const res = await sendChatMessage(text);
+      const res = await sendChatMessage(text, activeConvId);
+
       const asstMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: 'asst-' + (Date.now() + 1),
         role: 'assistant',
         content: res.reply,
         timestamp: new Date().toISOString(),
         applied_actions: res.actions_performed
       };
-      onMessageSent([...updatedMessages, asstMsg], res.meal_plan, res.grocery_list);
+
+      setMessages(prev => [...prev, asstMsg]);
+      onMessageSent([...messages, tempUserMsg, asstMsg], res.meal_plan, res.grocery_list);
+
+      // Refresh conversations list to update title & message previews
+      const updatedList = await fetchConversations();
+      setConversations(updatedList);
     } catch (err: any) {
       const errorMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: 'err-' + (Date.now() + 1),
         role: 'assistant',
-        content: `Sorry, I encountered an error: ${err.message}. Make sure your Hermes agent / backend is running.`,
+        content: `Sorry, I encountered an error: ${err.message}. Make sure your backend service is running.`,
         timestamp: new Date().toISOString()
       };
-      onMessageSent([...updatedMessages, errorMsg], {} as any, {} as any);
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClearHistory = async () => {
-    if (window.confirm("Clear chat history? (Your meal plan and grocery list will stay intact)")) {
-      await clearChatHistory();
-      onRefresh();
-    }
-  };
+  const activeConv = conversations.find(c => c.id === activeConvId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] max-w-4xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-      {/* Header bar */}
-      <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">AI Meal Planning Copilot</h2>
-            <p className="text-[11px] text-slate-500">Converse naturally — I update your plan & grocery list live</p>
-          </div>
+    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[calc(100vh-115px)] max-w-4xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden relative">
+      {/* Header bar with Conversation Switcher */}
+      <div className="px-3 sm:px-4 py-2.5 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between gap-2 z-10">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowConvList(!showConvList)}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-200/70 transition cursor-pointer text-left"
+          >
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-800 truncate max-w-[160px] sm:max-w-xs">
+                  {activeConv?.title || "AI Chat"}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">Switch conversation thread</p>
+            </div>
+          </button>
+
+          {/* Conversations Dropdown / Drawer */}
+          {showConvList && (
+            <div className="absolute top-12 left-0 w-72 sm:w-80 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 animate-fadeIn">
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Chat History
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNewConversation}
+                  className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>New Chat</span>
+                </button>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {conversations.map((c) => {
+                  const isActive = c.id === activeConvId;
+                  const isRenaming = renamingId === c.id;
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => handleSelectConversation(c.id)}
+                      className={`group p-2 rounded-xl text-xs flex items-center justify-between gap-2 transition cursor-pointer ${
+                        isActive
+                          ? 'bg-emerald-50/80 text-emerald-900 font-semibold'
+                          : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        {isRenaming ? (
+                          <input
+                            type="text"
+                            value={renameInput}
+                            onChange={(e) => setRenameInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveRename(c.id);
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs px-2 py-0.5 rounded border border-emerald-400 w-full focus:outline-hidden"
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs">{c.title}</p>
+                            <p className="text-[10px] text-slate-400 truncate font-normal">
+                              {c.last_message_preview}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                        {isRenaming ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveRename(c.id);
+                            }}
+                            className="p-1 text-emerald-600 hover:bg-emerald-100 rounded"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleStartRename(e, c)}
+                            className="p-1 text-slate-400 hover:text-slate-700 rounded"
+                            title="Rename"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteConversation(e, c.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {messages.length > 0 && (
-          <button
-            onClick={handleClearHistory}
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs flex items-center gap-1 transition"
-            title="Clear Chat History"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="text-[11px] hidden sm:inline">Clear Chat</span>
-          </button>
-        )}
+        {/* New Chat Top Button */}
+        <button
+          type="button"
+          onClick={handleNewConversation}
+          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          title="Start fresh conversation"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">New Chat</span>
+        </button>
       </div>
 
       {/* Messages list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
-              <Bot className="w-8 h-8" />
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-1">
+              <Bot className="w-7 h-7" />
             </div>
             <div className="max-w-md">
-              <h3 className="text-base font-semibold text-slate-900">What are we craving this week?</h3>
+              <h3 className="text-base font-bold text-slate-900">What are we craving this week?</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Tell me what ingredients you have, dietary goals, or how many nights you want to cook. I'll tailor the recipes and generate your grocery list.
+                Tell me what ingredients you have, dietary goals, or how many nights you want to cook. I'll tailor the recipes and update your grocery list live.
               </p>
             </div>
 
             {/* Quick Inspiration Pills */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg mt-3">
               {QUICK_PROMPTS.map((prompt, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSend(prompt)}
-                  className="text-left p-2.5 text-xs text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl transition flex items-center justify-between group"
+                  className="text-left p-2.5 text-xs text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl transition flex items-center justify-between group cursor-pointer"
                 >
                   <span className="truncate mr-2">{prompt}</span>
                   <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 shrink-0" />
@@ -206,7 +438,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
             ))}
 
             {loading && (
-              <div className="flex gap-3 justify-start items-center">
+              <div className="flex gap-3 justify-start items-center animate-fadeIn">
                 <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
                   <Bot className="w-4 h-4" />
                 </div>
@@ -253,7 +485,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type dinner ideas, constraints, or speak..."
-              className="w-full bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition shadow-inner"
+              className="w-full bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden transition shadow-inner"
               disabled={loading}
             />
             {isSupported && (
@@ -275,7 +507,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-sm transition flex items-center justify-center shrink-0 cursor-pointer"
+            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-xs transition flex items-center justify-center shrink-0 cursor-pointer"
             title="Send message"
           >
             <Send className="w-4 h-4" />

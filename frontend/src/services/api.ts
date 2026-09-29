@@ -1,7 +1,60 @@
-import { MealPlan, GroceryList, ChatMessage, ChatResponse, Recipe, MediaLink } from '../types';
+import {
+  MealPlan, GroceryList, ChatMessage, ChatResponse, Recipe, MediaLink,
+  UserSettings, Conversation, ConversationSummary, MealHistoryEntry, ClearedGroceryItem
+} from '../types';
 
 const API_BASE = '/api';
 
+/**
+ * Robust clipboard copy utility that works on both HTTPS and non-secure HTTP (e.g. mobile LAN)
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn('navigator.clipboard failed, attempting fallback:', e);
+    }
+  }
+
+  // Fallback using textarea execCommand
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error('Fallback clipboard copy failed:', err);
+    return false;
+  }
+}
+
+// ==================== User Settings ====================
+export async function fetchSettings(): Promise<UserSettings> {
+  const res = await fetch(`${API_BASE}/settings`);
+  if (!res.ok) throw new Error('Failed to fetch settings');
+  return res.json();
+}
+
+export async function updateSettings(settings: UserSettings): Promise<UserSettings> {
+  const res = await fetch(`${API_BASE}/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error('Failed to update settings');
+  return res.json();
+}
+
+// ==================== Meal Plan ====================
 export async function fetchMealPlan(): Promise<MealPlan> {
   const res = await fetch(`${API_BASE}/meal-plan`);
   if (!res.ok) throw new Error('Failed to fetch meal plan');
@@ -44,6 +97,76 @@ export async function resetMealPlan(): Promise<MealPlan> {
   return res.json();
 }
 
+// ==================== Meal History ====================
+export async function fetchMealHistory(): Promise<MealHistoryEntry[]> {
+  const res = await fetch(`${API_BASE}/meal-plan/history`);
+  if (!res.ok) throw new Error('Failed to fetch meal history');
+  return res.json();
+}
+
+export async function togglePinMealHistory(id: string): Promise<MealHistoryEntry> {
+  const res = await fetch(`${API_BASE}/meal-plan/history/${id}/pin`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to toggle pin');
+  return res.json();
+}
+
+export async function deleteMealHistory(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/meal-plan/history/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete meal history entry');
+}
+
+export async function applyHistoryMeal(day_of_week: string, recipe_id: string): Promise<MealPlan> {
+  const res = await fetch(`${API_BASE}/meal-plan/history/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ day_of_week, recipe_id }),
+  });
+  if (!res.ok) throw new Error('Failed to apply historical meal');
+  return res.json();
+}
+
+// ==================== One-Click AI Suggestion & Week Planning ====================
+export async function aiSuggestMealForDay(
+  day_of_week: string,
+  preferences?: string[],
+  custom_prompt?: string
+): Promise<MealPlan> {
+  const res = await fetch(`${API_BASE}/meal-plan/ai-suggest-day`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      day_of_week,
+      preferences,
+      custom_prompt
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to generate AI suggestion for day');
+  return res.json();
+}
+
+export async function aiPlanEntireWeek(
+  preferences?: string[],
+  custom_prompt?: string,
+  overwrite_all: boolean = false
+): Promise<MealPlan> {
+  const res = await fetch(`${API_BASE}/meal-plan/ai-plan-week`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      preferences,
+      custom_prompt,
+      overwrite_all
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to plan entire week');
+  return res.json();
+}
+
+// ==================== Grocery List & Cleared History ====================
 export async function fetchGroceryList(): Promise<GroceryList> {
   const res = await fetch(`${API_BASE}/grocery`);
   if (!res.ok) throw new Error('Failed to fetch grocery list');
@@ -58,6 +181,16 @@ export async function toggleGroceryItem(itemId: string): Promise<GroceryList> {
   return res.json();
 }
 
+export async function updateGroceryItemStore(itemId: string, store: string | null): Promise<GroceryList> {
+  const res = await fetch(`${API_BASE}/grocery/items/${itemId}/store`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ store }),
+  });
+  if (!res.ok) throw new Error('Failed to update item store');
+  return res.json();
+}
+
 export async function deleteGroceryItem(itemId: string): Promise<GroceryList> {
   const res = await fetch(`${API_BASE}/grocery/items/${itemId}`, {
     method: 'DELETE',
@@ -66,7 +199,14 @@ export async function deleteGroceryItem(itemId: string): Promise<GroceryList> {
   return res.json();
 }
 
-export async function addGroceryItem(item: { name: string; amount: number; unit: string; category?: string; notes?: string }): Promise<GroceryList> {
+export async function addGroceryItem(item: {
+  name: string;
+  amount: number;
+  unit: string;
+  category?: string;
+  notes?: string;
+  store?: string;
+}): Promise<GroceryList> {
   const res = await fetch(`${API_BASE}/grocery/items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -92,17 +232,71 @@ export async function syncGroceryList(): Promise<GroceryList> {
   return res.json();
 }
 
+export async function fetchClearedGroceryHistory(): Promise<ClearedGroceryItem[]> {
+  const res = await fetch(`${API_BASE}/grocery/cleared-history`);
+  if (!res.ok) throw new Error('Failed to fetch cleared grocery history');
+  return res.json();
+}
+
+export async function restoreClearedGroceryItem(clearedId: string): Promise<GroceryList> {
+  const res = await fetch(`${API_BASE}/grocery/cleared-history/${clearedId}/restore`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to restore cleared item');
+  return res.json();
+}
+
+// ==================== Conversations & Chat ====================
+export async function fetchConversations(): Promise<ConversationSummary[]> {
+  const res = await fetch(`${API_BASE}/chat/conversations`);
+  if (!res.ok) throw new Error('Failed to fetch conversations');
+  return res.json();
+}
+
+export async function fetchConversation(id: string): Promise<Conversation> {
+  const res = await fetch(`${API_BASE}/chat/conversations/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch conversation');
+  return res.json();
+}
+
+export async function createConversation(title?: string): Promise<Conversation> {
+  const res = await fetch(`${API_BASE}/chat/conversations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error('Failed to create conversation');
+  return res.json();
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/chat/conversations/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete conversation');
+}
+
+export async function renameConversation(id: string, title: string): Promise<Conversation> {
+  const res = await fetch(`${API_BASE}/chat/conversations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error('Failed to rename conversation');
+  return res.json();
+}
+
 export async function fetchChatHistory(): Promise<ChatMessage[]> {
   const res = await fetch(`${API_BASE}/chat/history`);
   if (!res.ok) throw new Error('Failed to fetch chat history');
   return res.json();
 }
 
-export async function sendChatMessage(message: string): Promise<ChatResponse> {
+export async function sendChatMessage(message: string, conversation_id?: string): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, conversation_id }),
   });
   if (!res.ok) throw new Error('Failed to send chat message');
   return res.json();
