@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={onOpenGuide}
             className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-slate-100 rounded-xl text-xs flex items-center gap-1 transition cursor-pointer"
-            title="User Guide & Help for You & Becca"
+            title="User Guide & Help"
           >
             <BookOpen className="w-4 h-4 text-slate-500" />
             <span className="hidden sm:inline text-xs font-medium">Guide</span>

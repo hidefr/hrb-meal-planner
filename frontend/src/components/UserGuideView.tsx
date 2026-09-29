@@ -336,7 +336,7 @@ export const UserGuideView: React.FC = () => {
 
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
             <strong className="text-slate-800 text-sm block mb-1">
-              Q: Can Becca and I be on the app at the same time?
+              Q: Can multiple people use the app at the same time?
             </strong>
             <p>
               Yes! TasteCraft runs on your local network. Both of you can have the app open on your phones, check off items as you walk through different supermarket aisles, and tap the sync button to see the latest updates.
@@ -377,7 +377,7 @@ export const UserGuideView: React.FC = () => {
             How TasteCraft Works
           </h1>
           <p className="text-emerald-100 text-xs md:text-sm mt-1.5 leading-relaxed">
-            A simple reference guide for you and Becca. Learn how recipes sync with groceries, how to track partial stock, use voice-to-text, and organize meals.
+            A simple reference guide. Learn how recipes sync with groceries, how to track partial stock, use voice-to-text, and organize meals.
           </p>
         </div>
 

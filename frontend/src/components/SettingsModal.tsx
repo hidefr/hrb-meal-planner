@@ -280,7 +280,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               rows={3}
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              placeholder="e.g. We love Mexican and Asian flavors on weekends, Becca doesn't like cilantro, always keep dinners under 45 mins..."
+              placeholder="e.g. We love Mexican and Asian flavors on weekends, no cilantro, always keep dinners under 45 mins..."
               className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden resize-none leading-relaxed"
             />
           </div>
