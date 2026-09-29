@@ -2,23 +2,47 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 backend/venv/
+backend/.venv/
+.venv/
+venv/
+ENV/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
 backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs
+*.log
+backend/*.log
+logs/
+
+# App Data / Local Database
 backend/data/*.json
 !backend/data/.gitkeep
 
 # Node / Vite
 frontend/node_modules/
+node_modules/
 frontend/.pnp
 frontend/.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Testing and coverage
 coverage/
 *.lcov
 .nyc_output
-
-# Production build artifacts (keep dist or ignore if built on laptop)
-# frontend/dist
+.pytest_cache/
 
 # OS files
 .DS_Store
@@ -29,3 +53,5 @@ ehthumbs.db
 # IDE files
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace

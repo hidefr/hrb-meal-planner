@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Trash2, Bot, User, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Send, Sparkles, Trash2, Bot, User, CheckCircle2, ArrowRight, Mic, MicOff } from 'lucide-react';
 import { ChatMessage, MealPlan, GroceryList } from '../types';
 import { sendChatMessage, clearChatHistory } from '../services/api';
+import { useSpeechRecognition } from '../services/useSpeechRecognition';
 
 interface ChatCopilotProps {
   messages: ChatMessage[];
@@ -27,6 +28,11 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const { isListening, isSupported, toggleListening, stopListening } = useSpeechRecognition({
+    onTranscriptChange: (text) => setInput(text),
+    getCurrentText: () => input
+  });
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -36,6 +42,9 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
   }, [messages, loading]);
 
   const handleSend = async (textToSend?: string) => {
+    if (isListening) {
+      stopListening();
+    }
     const text = (textToSend || input).trim();
     if (!text || loading) return;
 
@@ -216,6 +225,21 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
 
       {/* Input bar */}
       <div className="p-3 bg-white border-t border-slate-200">
+        {isListening && (
+          <div className="mb-2 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+              <span className="font-medium">Listening... speak naturally. Text appends to your input.</span>
+            </div>
+            <button
+              type="button"
+              onClick={stopListening}
+              className="text-xs font-semibold text-rose-800 hover:underline cursor-pointer"
+            >
+              Stop
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -223,18 +247,36 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
           }}
           className="flex items-center gap-2"
         >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type dinner ideas, constraints, or grocery additions..."
-            className="flex-1 bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition shadow-inner"
-            disabled={loading}
-          />
+          <div className="relative flex-1 flex items-center">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type dinner ideas, constraints, or speak..."
+              className="w-full bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition shadow-inner"
+              disabled={loading}
+            />
+            {isSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={loading}
+                title={isListening ? "Stop listening" : "Voice-to-text dictation (appends speech)"}
+                className={`absolute right-2 p-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                  isListening
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-300 ring-2 ring-rose-400 animate-pulse'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/70'
+                }`}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-sm transition flex items-center justify-center"
+            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-sm transition flex items-center justify-center shrink-0 cursor-pointer"
+            title="Send message"
           >
             <Send className="w-4 h-4" />
           </button>
