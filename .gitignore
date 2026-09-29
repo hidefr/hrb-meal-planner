@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+backend/.env
+backend/data/*.json
+!backend/data/.gitkeep
+
+# Node / Vite
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Testing and coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Production build artifacts (keep dist or ignore if built on laptop)
+# frontend/dist
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# IDE files
+.vscode/
+.idea/

@@ -1,0 +1,18 @@
+{
+  "name": "TasteCraft Meal Planner",
+  "short_name": "TasteCraft",
+  "description": "AI-First Weekly Meal Planner & Smart Grocery List",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

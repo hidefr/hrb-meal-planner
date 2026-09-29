@@ -1,0 +1,80 @@
+from fastapi import APIRouter, HTTPException
+from typing import Optional
+from pydantic import BaseModel
+from app.models.schemas import GroceryList, GroceryItem
+from app.db.storage import storage
+from app.services.grocery_engine import sync_grocery_list_from_meal_plan, guess_category
+
+router = APIRouter(prefix="/api/grocery", tags=["grocery"])
+
+class AddItemRequest(BaseModel):
+    name: str
+    amount: float = 1.0
+    unit: str = "item"
+    category: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.get("", response_model=GroceryList)
+async def get_grocery_list():
+    return storage.get_grocery_list()
+
+@router.put("", response_model=GroceryList)
+async def update_grocery_list(grocery: GroceryList):
+    storage.save_grocery_list(grocery)
+    return grocery
+
+@router.post("/sync", response_model=GroceryList)
+async def sync_grocery():
+    plan = storage.get_meal_plan()
+    current_grocery = storage.get_grocery_list()
+    synced = sync_grocery_list_from_meal_plan(plan, current_grocery)
+    storage.save_grocery_list(synced)
+    return synced
+
+@router.post("/items", response_model=GroceryList)
+async def add_item(req: AddItemRequest):
+    grocery = storage.get_grocery_list()
+    name_clean = req.name.strip().title()
+    cat = req.category or guess_category(name_clean)
+    
+    # Check if duplicate exists
+    for item in grocery.items:
+        if item.name.lower() == name_clean.lower() and item.unit.lower() == req.unit.lower():
+            item.amount += req.amount
+            storage.save_grocery_list(grocery)
+            return grocery
+
+    grocery.items.append(GroceryItem(
+        name=name_clean,
+        amount=round(req.amount, 2),
+        unit=req.unit,
+        category=cat,
+        manual=True,
+        notes=req.notes
+    ))
+    storage.save_grocery_list(grocery)
+    return grocery
+
+@router.patch("/items/{item_id}/toggle", response_model=GroceryList)
+async def toggle_item(item_id: str):
+    grocery = storage.get_grocery_list()
+    for item in grocery.items:
+        if item.id == item_id:
+            item.checked = not item.checked
+            break
+    storage.save_grocery_list(grocery)
+    return grocery
+
+@router.delete("/items/{item_id}", response_model=GroceryList)
+async def delete_item(item_id: str):
+    grocery = storage.get_grocery_list()
+    grocery.items = [i for i in grocery.items if i.id != item_id]
+    storage.save_grocery_list(grocery)
+    return grocery
+
+@router.post("/clear-checked", response_model=GroceryList)
+async def clear_checked():
+    grocery = storage.get_grocery_list()
+    grocery.items = [i for i in grocery.items if not i.checked]
+    storage.save_grocery_list(grocery)
+    return grocery
