@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Check, Settings, Store, Sparkles, ChefHat } from 'lucide-react';
-import { UserSettings } from '../types';
+import {
+  X, Plus, Trash2, Check, Settings, Store, Sparkles,
+  ChefHat, Copy, RefreshCw, RotateCcw, BookOpen
+} from 'lucide-react';
+import { UserSettings, MealPlan, GroceryList } from '../types';
+import { copyToClipboard } from '../services/api';
 
 interface SettingsModalProps {
   settings: UserSettings;
+  mealPlan?: MealPlan | null;
+  groceryList?: GroceryList | null;
   onClose: () => void;
   onSave: (updated: UserSettings) => Promise<void>;
+  onRefreshData?: () => void;
+  onResetPlan?: () => void;
+  onOpenGuide?: () => void;
+  isSyncing?: boolean;
 }
 
 const DEFAULT_AVAILABLE = [
@@ -22,10 +32,47 @@ const DEFAULT_AVAILABLE = [
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
+  mealPlan,
+  groceryList,
   onClose,
   onSave,
+  onRefreshData,
+  onResetPlan,
+  onOpenGuide,
+  isSyncing = false,
 }) => {
   const [stores, setStores] = useState<string[]>([...(settings.stores || [])]);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopySummary = async () => {
+    if (!mealPlan) return;
+    let text = `🍳 *${mealPlan.week_title}*\n\n`;
+    text += `📅 *MEAL PLAN:*\n`;
+    mealPlan.slots.forEach(slot => {
+      text += `• ${slot.day_of_week}: ${slot.recipe ? slot.recipe.title : 'Free day'}\n`;
+    });
+
+    if (groceryList && groceryList.items.length > 0) {
+      text += `\n🛒 *GROCERY LIST:*\n`;
+      const byCat: { [key: string]: string[] } = {};
+      groceryList.items.forEach(i => {
+        byCat[i.category] = byCat[i.category] || [];
+        const storeTag = i.store ? ` [@${i.store}]` : '';
+        byCat[i.category].push(`- [${i.checked ? 'x' : ' '}] ${i.amount} ${i.unit} ${i.name}${storeTag}`);
+      });
+      Object.entries(byCat).forEach(([cat, items]) => {
+        text += `\n*${cat}:*\n` + items.join('\n') + '\n';
+      });
+    }
+
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      alert("Could not copy automatically. Please copy manually.");
+    }
+  };
 
   // Combine initial available preferences
   const initialAvailable = Array.from(new Set([
@@ -118,8 +165,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Preferences & Stores</h2>
-              <p className="text-xs text-slate-500">Configure 1-click AI meal suggestions and grocery store tagging</p>
+              <h2 className="text-base font-bold text-slate-900">Settings & Tools</h2>
+              <p className="text-xs text-slate-500">Plan tools, sync, AI dietary preferences, and store tagging</p>
             </div>
           </div>
           <button
@@ -128,6 +175,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Quick Actions & Tools Bar */}
+        <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Quick Actions & Tools</span>
+            </span>
+            <span className="text-[11px] text-slate-400">1-click utilities</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Copy Plan */}
+            <button
+              type="button"
+              onClick={handleCopySummary}
+              className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer ${
+                copied
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs'
+              }`}
+              title="Copy meal plan and grocery list"
+            >
+              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-600" />}
+              <span className="text-xs font-bold">{copied ? 'Copied!' : 'Copy Plan'}</span>
+            </button>
+
+            {/* Refresh / Sync */}
+            {onRefreshData && (
+              <button
+                type="button"
+                onClick={onRefreshData}
+                disabled={isSyncing}
+                className="p-2.5 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                title="Refresh & sync data with server"
+              >
+                <RefreshCw className={`w-4 h-4 text-slate-600 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                <span className="text-xs font-bold">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+              </button>
+            )}
+
+            {/* User Guide */}
+            {onOpenGuide && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenGuide();
+                }}
+                className="p-2.5 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                title="Open user guide"
+              >
+                <BookOpen className="w-4 h-4 text-slate-600" />
+                <span className="text-xs font-bold">User Guide</span>
+              </button>
+            )}
+
+            {/* Reset Week */}
+            {onResetPlan && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Reset this week meal plan to start fresh?')) {
+                    onResetPlan();
+                    onClose();
+                  }
+                }}
+                className="p-2.5 rounded-xl border bg-white border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                title="Reset this week's plan"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="text-xs font-bold">Reset Week</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Content */}
