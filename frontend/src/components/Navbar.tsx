@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChefHat, RefreshCw, Copy, Check, RotateCcw, Settings } from 'lucide-react';
+import { ChefHat, RefreshCw, Copy, Check, RotateCcw, Settings, BookOpen } from 'lucide-react';
 import { MealPlan, GroceryList } from '../types';
 import { copyToClipboard } from '../services/api';
 
@@ -9,6 +9,7 @@ interface NavbarProps {
   onResetPlan: () => void;
   onRefreshData: () => void;
   onOpenSettings: () => void;
+  onOpenGuide: () => void;
   isSyncing: boolean;
 }
 
@@ -18,6 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetPlan,
   onRefreshData,
   onOpenSettings,
+  onOpenGuide,
   isSyncing,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -97,6 +99,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Settings className="w-4 h-4 text-slate-500" />
             <span className="hidden sm:inline text-xs font-medium">Settings</span>
+          </button>
+
+          {/* Guide */}
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-slate-100 rounded-xl text-xs flex items-center gap-1 transition cursor-pointer"
+            title="User Guide & Help for You & Becca"
+          >
+            <BookOpen className="w-4 h-4 text-slate-500" />
+            <span className="hidden sm:inline text-xs font-medium">Guide</span>
           </button>
 
           {/* Refresh / Sync */}

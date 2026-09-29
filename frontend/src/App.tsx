@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Calendar, ShoppingBag, Sparkles, ChefHat } from 'lucide-react';
+import { MessageSquare, Calendar, ShoppingBag, Sparkles, ChefHat, BookOpen } from 'lucide-react';
 import { MealPlan, GroceryList, ChatMessage, Recipe, UserSettings } from './types';
 import {
   fetchMealPlan,
@@ -25,6 +25,7 @@ import { Navbar } from './components/Navbar';
 import { ChatCopilot } from './components/ChatCopilot';
 import { MealPlanBoard } from './components/MealPlanBoard';
 import { GroceryListView } from './components/GroceryListView';
+import { UserGuideView } from './components/UserGuideView';
 import { RecipeDetailModal } from './components/RecipeDetailModal';
 import { ManualMealModal } from './components/ManualMealModal';
 import { ManualGroceryModal } from './components/ManualGroceryModal';
@@ -33,7 +34,7 @@ import { MealHistoryModal } from './components/MealHistoryModal';
 import { ClearedGroceryModal } from './components/ClearedGroceryModal';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery'>('plan');
+  const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery' | 'guide'>('plan');
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings>({
@@ -229,6 +230,7 @@ export const App: React.FC = () => {
         onResetPlan={handleResetPlan}
         onRefreshData={loadData}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenGuide={() => setActiveTab('guide')}
         isSyncing={isSyncing}
       />
 
@@ -278,6 +280,18 @@ export const App: React.FC = () => {
               <MessageSquare className="w-4 h-4" />
               <span>AI</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('guide')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+                activeTab === 'guide'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Guide</span>
+            </button>
           </div>
 
           <div className="text-xs text-slate-400 font-medium">
@@ -321,6 +335,10 @@ export const App: React.FC = () => {
             onRefresh={loadData}
           />
         )}
+
+        {activeTab === 'guide' && (
+          <UserGuideView />
+        )}
       </main>
 
       {/* Mobile Sticky Bottom Navigation Bar (Compact Titles) */}
@@ -360,6 +378,16 @@ export const App: React.FC = () => {
         >
           <MessageSquare className="w-5 h-5" />
           <span className="text-[10px]">AI</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('guide')}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
+            activeTab === 'guide' ? 'text-emerald-700 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <BookOpen className="w-5 h-5" />
+          <span className="text-[10px]">Guide</span>
         </button>
       </nav>
 
