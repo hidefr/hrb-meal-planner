@@ -90,6 +90,7 @@ class ChatMessage(BaseModel):
     tool_calls: Optional[List[dict]] = None
     tool_call_id: Optional[str] = None
     applied_actions: Optional[List[str]] = None # Human-readable badges like ["Updated Tuesday Dinner", "Added 5 items to grocery list"]
+    image_url: Optional[str] = None
 
 class Conversation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -135,6 +136,7 @@ class UserSettings(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
+    image_data: Optional[str] = None # Base64 data URL or image URL
 
 class ChatResponse(BaseModel):
     reply: str

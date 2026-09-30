@@ -29,6 +29,12 @@ RULES & BEHAVIOR:
 4. GROCERY SYNC: Setting meals will automatically consolidate ingredients into the grocery list categorized by store aisle (Produce, Meat, Dairy, etc.). If the user asks for snacks, drinks, or pantry items, use 'add_grocery_item'.
 5. MEDIA ENRICHMENT: The system automatically searches for real-world cooking videos (YouTube) and appetizing photos for every recipe you create. Mention that videos and guides will be attached to their recipe cards!
 6. TONE: Warm, culinary-savvy, concise, and proactive.
+7. MULTIMODAL PHOTO / RECEIPT / RECIPE CARD ANALYSIS:
+When the user shares or uploads a photo:
+- Dish or restaurant meal photo: Identify the dish, analyze its ingredients, and generate a complete, tailored recipe with accurate measurements and step-by-step instructions. Suggest scheduling it on any day, or call 'set_meal_slot' if a day was specified!
+- Handwritten recipe card, cookbook, or menu photo: Extract the title, ingredients, and instructions, and offer to schedule it.
+- Grocery receipt photo: Parse the grocery items and call 'add_grocery_item' for each item to sync their kitchen stock.
+- Fridge or pantry photo: Identify the visible ingredients and recommend 2-3 delicious dinners they can cook immediately!
 """
 
 TOOLS_DEFINITIONS = [
@@ -275,7 +281,8 @@ class LLMAgent:
         user_message: str,
         history: List[ChatMessage],
         meal_plan: MealPlan,
-        grocery_list: GroceryList
+        grocery_list: GroceryList,
+        image_data: Optional[str] = None
     ) -> Tuple[str, List[str], MealPlan, GroceryList]:
         """
         Processes a user message, runs tool calls against Hermes/LLM,
@@ -288,10 +295,28 @@ class LLMAgent:
 
         messages = [{"role": "system", "content": system_content}]
         for msg in history[-10:]:
-            if msg.role in ["user", "assistant"]:
+            if msg.role == "user" and msg.image_url:
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": msg.content or "Uploaded photo"},
+                        {"type": "image_url", "image_url": {"url": msg.image_url}}
+                    ]
+                })
+            elif msg.role in ["user", "assistant"]:
                 messages.append({"role": msg.role, "content": msg.content})
         
-        messages.append({"role": "user", "content": user_message})
+        if image_data:
+            text_part = user_message.strip() if user_message and user_message.strip() else "Analyze this photo and create a recipe, meal plan suggestion, or extract receipt details from it."
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_part},
+                    {"type": "image_url", "image_url": {"url": image_data}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         actions_performed: List[str] = []
         final_reply = ""

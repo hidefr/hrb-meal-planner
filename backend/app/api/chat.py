@@ -73,7 +73,11 @@ async def post_chat(req: ChatRequest):
         conv_id = conv.id
 
     # Save user message immediately to the conversation
-    user_msg = ChatMessage(role="user", content=req.message)
+    user_msg = ChatMessage(
+        role="user",
+        content=req.message,
+        image_url=req.image_data
+    )
     storage.add_message_to_conversation(conv_id, user_msg)
 
     # Process through LLM agent with conversation's history
@@ -82,7 +86,8 @@ async def post_chat(req: ChatRequest):
         user_message=req.message,
         history=history,
         meal_plan=meal_plan,
-        grocery_list=grocery_list
+        grocery_list=grocery_list,
+        image_data=req.image_data
     )
 
     # Save meal plan & grocery list changes

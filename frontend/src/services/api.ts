@@ -307,11 +307,15 @@ export async function fetchChatHistory(): Promise<ChatMessage[]> {
   return res.json();
 }
 
-export async function sendChatMessage(message: string, conversation_id?: string): Promise<ChatResponse> {
+export async function sendChatMessage(
+  message: string,
+  conversation_id?: string,
+  image_data?: string
+): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversation_id }),
+    body: JSON.stringify({ message, conversation_id, image_data }),
   });
   if (!res.ok) throw new Error('Failed to send chat message');
   return res.json();

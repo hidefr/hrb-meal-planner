@@ -92,6 +92,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   applied_actions?: string[] | null;
+  image_url?: string | null;
 }
 
 export interface ConversationSummary {

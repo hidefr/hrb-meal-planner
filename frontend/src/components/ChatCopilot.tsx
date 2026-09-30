@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Send, Sparkles, Trash2, Bot, User, CheckCircle2, ArrowRight,
-  Mic, MicOff, MessageSquare, Plus, ChevronDown, Edit2, Check
+  Mic, MicOff, MessageSquare, Plus, ChevronDown, Edit2, Check,
+  Camera, Image as ImageIcon, X
 } from 'lucide-react';
 import { ChatMessage, MealPlan, GroceryList, ConversationSummary, Conversation } from '../types';
 import {
@@ -21,6 +22,8 @@ interface ChatCopilotProps {
 
 const QUICK_PROMPTS = [
   "✨ Plan 4 easy dinners for this week",
+  "📸 Create a recipe from a photo",
+  "🧾 Add items from a grocery receipt",
   "⏱️ Keep dinners under 30 minutes and one-pot",
   "🥗 We want healthy, high-protein & fresh veggies",
   "🥑 Low-carb comfort meals",
@@ -36,12 +39,50 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
   const [activeConvId, setActiveConvId] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showConvList, setShowConvList] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1280;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setSelectedImage(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const { isListening, isSupported, toggleListening, stopListening } = useSpeechRecognition({
     onTranscriptChange: (text) => setInput(text),
@@ -171,13 +212,17 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
       stopListening();
     }
     const text = (textToSend || input).trim();
-    if (!text || loading) return;
+    if ((!text && !selectedImage) || loading) return;
+
+    const currentImg = selectedImage;
+    setSelectedImage(null);
 
     // 1. Immediately show user message on screen!
     const tempUserMsg: ChatMessage = {
       id: 'usr-' + Date.now(),
       role: 'user',
-      content: text,
+      content: text || '📸 Create a recipe or analyze details from this photo',
+      image_url: currentImg,
       timestamp: new Date().toISOString()
     };
 
@@ -187,7 +232,11 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
     setTimeout(scrollToBottom, 30);
 
     try {
-      const res = await sendChatMessage(text, activeConvId);
+      const res = await sendChatMessage(
+        text || 'Analyze this photo and create a delicious recipe or extract items from it.',
+        activeConvId,
+        currentImg || undefined
+      );
 
       const asstMsg: ChatMessage = {
         id: 'asst-' + (Date.now() + 1),
@@ -398,6 +447,13 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
                       : 'bg-slate-100/90 text-slate-800 rounded-tl-xs'
                   }`}
                 >
+                  {msg.image_url && (
+                    <img
+                      src={msg.image_url}
+                      alt="Uploaded dish or receipt"
+                      className="rounded-xl max-h-52 max-w-full object-cover mb-2 border border-black/10 shadow-xs"
+                    />
+                  )}
                   <p className="whitespace-pre-wrap">{msg.content}</p>
 
                   {/* Actions performed badges */}
@@ -457,6 +513,35 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
 
       {/* Input bar */}
       <div className="p-3 bg-white border-t border-slate-200">
+        {selectedImage && (
+          <div className="mb-2 p-2 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <img
+                src={selectedImage}
+                alt="Selected"
+                className="w-14 h-14 rounded-xl object-cover border border-emerald-300 shadow-2xs"
+              />
+              <div>
+                <span className="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                  <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                  Photo attached
+                </span>
+                <p className="text-[11px] text-emerald-700">
+                  Ask to create a recipe, plan a dinner, or scan a receipt
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+              title="Remove photo"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {isListening && (
           <div className="mb-2 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between animate-pulse">
             <div className="flex items-center gap-2">
@@ -472,6 +557,16 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
             </button>
           </div>
         )}
+
+        {/* Hidden File Input for Camera / Photo Library */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageSelect}
+        />
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -479,12 +574,23 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
           }}
           className="flex items-center gap-2"
         >
+          {/* Camera / Upload Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-emerald-700 transition flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
+            title="Attach a photo of a meal, recipe card, or grocery receipt"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+
           <div className="relative flex-1 flex items-center">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type dinner ideas, constraints, or speak..."
+              placeholder={selectedImage ? "Add instructions (e.g. 'Make this for Thursday')..." : "Type ideas, attach photo, or speak..."}
               className="w-full bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden transition shadow-inner"
               disabled={loading}
             />
@@ -506,7 +612,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
           </div>
           <button
             type="submit"
-            disabled={!input.trim() || loading}
+            disabled={(!input.trim() && !selectedImage) || loading}
             className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-xs transition flex items-center justify-center shrink-0 cursor-pointer"
             title="Send message"
           >
