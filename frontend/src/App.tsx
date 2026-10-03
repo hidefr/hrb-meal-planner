@@ -31,6 +31,7 @@ import { ManualGroceryModal } from './components/ManualGroceryModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MealHistoryModal } from './components/MealHistoryModal';
 import { ClearedGroceryModal } from './components/ClearedGroceryModal';
+import { VoiceCookingMode } from './components/VoiceCookingMode';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery' | 'guide'>(() => {
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
 
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
+  const [cookingModeData, setCookingModeData] = useState<{ recipe: Recipe; day: string } | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings>({
     stores: ["Amazon", "Fred Meyer", "Trader Joe's", "Safeway", "New Seasons"],
     available_preferences: [
@@ -341,6 +343,7 @@ export const App: React.FC = () => {
             onAiSuggestDay={handleAiSuggestDay}
             onAiPlanWeek={handleAiPlanWeek}
             onOpenHistory={handleOpenMealHistory}
+            onStartCookingMode={(recipe, day) => setCookingModeData({ recipe, day })}
           />
         )}
 
@@ -446,6 +449,19 @@ export const App: React.FC = () => {
             setSelectedRecipeData({ recipe: updated, day: selectedRecipeData.day });
             handleSaveManualMeal(selectedRecipeData.day, updated);
           }}
+          onStartCookingMode={() => {
+            const current = selectedRecipeData;
+            setSelectedRecipeData(null);
+            setCookingModeData(current);
+          }}
+        />
+      )}
+
+      {cookingModeData && (
+        <VoiceCookingMode
+          recipe={cookingModeData.recipe}
+          dayOfWeek={cookingModeData.day}
+          onClose={() => setCookingModeData(null)}
         />
       )}
 

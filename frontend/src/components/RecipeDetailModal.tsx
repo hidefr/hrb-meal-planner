@@ -9,6 +9,7 @@ interface RecipeDetailModalProps {
   onClose: () => void;
   onEditManual: () => void;
   onRecipeUpdated: (updatedRecipe: Recipe) => void;
+  onStartCookingMode?: () => void;
 }
 
 export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
@@ -16,7 +17,8 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   dayOfWeek,
   onClose,
   onEditManual,
-  onRecipeUpdated
+  onRecipeUpdated,
+  onStartCookingMode,
 }) => {
   const [searchingMedia, setSearchingMedia] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -236,19 +238,31 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 flex-wrap">
           <button
             onClick={onEditManual}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200 border border-slate-300 transition"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200 border border-slate-300 transition cursor-pointer"
           >
-            ✏️ Edit Recipe Manually
+            ✏️ Edit Recipe
           </button>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
-          >
-            Done
-          </button>
+
+          <div className="flex items-center gap-2">
+            {onStartCookingMode && (
+              <button
+                type="button"
+                onClick={onStartCookingMode}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>🎙️ Start Cooking Mode</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
         </div>
       </div>
     </div>

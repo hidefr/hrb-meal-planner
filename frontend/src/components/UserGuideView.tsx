@@ -203,6 +203,19 @@ export const UserGuideView: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            <div className="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-xl border border-emerald-200">
+              <Mic className="w-4 h-4 text-emerald-700 mt-0.5 shrink-0" />
+              <div>
+                <strong className="text-emerald-950 text-xs block font-bold">Hands-Free Voice Cooking Mode:</strong>
+                <span className="text-xs text-emerald-900 leading-relaxed block mt-0.5">
+                  Tap <strong>"🎙️ Cook"</strong> on any meal card or <strong>"Start Cooking Mode"</strong> in the recipe dialog. The app enters a full-screen, high-contrast kitchen view with voice commands. It reads steps aloud and lets you navigate completely hands-free with your voice:
+                </span>
+                <span className="text-[11px] text-emerald-800 font-mono mt-1 block">
+                  Commands: "Next", "Back", "Repeat step", "Read ingredients", "Step 3", "Quiet", "Exit"
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )
