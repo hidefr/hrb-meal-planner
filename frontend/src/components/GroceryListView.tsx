@@ -73,10 +73,13 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
     return item.store?.toLowerCase() === selectedStoreFilter.toLowerCase();
   });
 
-  // Group items by category
+  // Group items by category (map any non-standard category to 'Other' so no item can ever be hidden)
   const grouped: { [category: string]: GroceryItem[] } = {};
   filteredItems.forEach(item => {
-    const cat = item.category || 'Other';
+    let cat = item.category || 'Other';
+    if (!CATEGORY_ORDER.includes(cat)) {
+      cat = 'Other';
+    }
     grouped[cat] = grouped[cat] || [];
     grouped[cat].push(item);
   });
@@ -88,7 +91,13 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
   const handleCopyList = async () => {
     let text = `🛒 *GROCERY LIST* (${checkedCount}/${totalCount} checked)\n\n`;
     CATEGORY_ORDER.forEach(cat => {
-      const items = groceryList.items.filter(i => (i.category || 'Other') === cat);
+      const items = groceryList.items.filter(i => {
+        const itemCat = i.category || 'Other';
+        if (cat === 'Other') {
+          return !CATEGORY_ORDER.includes(itemCat) || itemCat === 'Other';
+        }
+        return itemCat === cat;
+      });
       if (items && items.length > 0) {
         text += `*${cat.toUpperCase()}*\n`;
         items.forEach(item => {

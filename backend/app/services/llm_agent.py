@@ -26,14 +26,14 @@ RULES & BEHAVIOR:
 1. CONVERSATIONAL & PRACTICAL: Start by listening to what they crave, how busy certain days are, dietary preferences, or ingredients to use up.
 2. RECOMMEND & CONFIRM: You can suggest a full or partial menu. When the user approves or asks to set meals, use your tools to update the actual meal plan!
 3. RECIPE TAILORING: When setting or tweaking recipes, make sure ingredients have realistic amounts, units (e.g. 'g', 'cup', 'tbsp', 'cloves', 'can', 'item'), and clear step-by-step instructions.
-4. GROCERY SYNC: Setting meals will automatically consolidate ingredients into the grocery list categorized by store aisle (Produce, Meat, Dairy, etc.). If the user asks for snacks, drinks, or pantry items, use 'add_grocery_item'.
+4. GROCERY SYNC & STORES: Setting meals will automatically consolidate ingredients into the grocery list categorized by store aisle (Produce, Meat, Dairy, etc.). If the user asks for snacks, drinks, or pantry items, use 'add_grocery_item'. If the user mentions a store (e.g., "tag it to Amazon", "from Trader Joe's", "buy at Fred Meyer"), pass that store in the 'store' parameter of 'add_grocery_item' or call 'tag_grocery_item'. Do NOT put the store name into the 'category' field!
 5. MEDIA ENRICHMENT: The system automatically searches for real-world cooking videos (YouTube) and appetizing photos for every recipe you create. Mention that videos and guides will be attached to their recipe cards!
 6. TONE: Warm, culinary-savvy, concise, and proactive.
 7. MULTIMODAL PHOTO / RECEIPT / RECIPE CARD ANALYSIS:
 When the user shares or uploads a photo:
 - Dish or restaurant meal photo: Identify the dish, analyze its ingredients, and generate a complete, tailored recipe with accurate measurements and step-by-step instructions. Suggest scheduling it on any day, or call 'set_meal_slot' if a day was specified!
 - Handwritten recipe card, cookbook, or menu photo: Extract the title, ingredients, and instructions, and offer to schedule it.
-- Grocery receipt photo: Parse the grocery items and call 'add_grocery_item' for each item to sync their kitchen stock.
+- Grocery receipt photo: Parse the grocery items and call 'add_grocery_item' for each item to sync their kitchen stock or grocery list. If the receipt identifies a store (e.g. Costco, Trader Joe's, Safeway), pass that store in 'store'.
 - Fridge or pantry photo: Identify the visible ingredients and recommend 2-3 delicious dinners they can cook immediately!
 """
 
@@ -103,17 +103,33 @@ TOOLS_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "add_grocery_item",
-            "description": "Directly adds a grocery or household item to the shopping list (for snacks, pantry staples, toiletries, etc.).",
+            "description": "Directly adds a grocery or household item to the shopping list (for snacks, pantry staples, toiletries, etc.). Can also assign a store tag.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "Item name, e.g. 'Oat Milk'"},
+                    "name": {"type": "string", "description": "Item name, e.g. 'Oat Milk' or 'Peanut Butter'"},
                     "amount": {"type": "number", "description": "Quantity"},
-                    "unit": {"type": "string", "description": "Unit e.g. 'carton', 'bottle', 'item'"},
-                    "category": {"type": "string", "description": "Aisle category"},
+                    "unit": {"type": "string", "description": "Unit e.g. 'carton', 'jar', 'bottle', 'item', 'lb'"},
+                    "category": {"type": "string", "description": "Aisle category (Produce, Meat & Seafood, Dairy & Refrigerated, Bakery, Pantry, Spices & Seasonings, Frozen, Other)"},
+                    "store": {"type": "string", "description": "Store to purchase from, e.g. 'Amazon', 'Fred Meyer', 'Trader Joe\\'s', 'Safeway', 'New Seasons'"},
                     "notes": {"type": "string", "description": "Optional notes"}
                 },
                 "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "tag_grocery_item",
+            "description": "Tags or updates the store for an existing grocery item (e.g. tag peanut butter to Amazon).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the item to tag"},
+                    "store": {"type": "string", "description": "Store to assign, e.g. 'Amazon', 'Fred Meyer', 'Trader Joe\\'s', 'Safeway', 'New Seasons'"}
+                },
+                "required": ["name", "store"]
             }
         }
     },
@@ -239,7 +255,22 @@ class LLMAgent:
             name_val = arguments.get("name", "").strip().title()
             amount = float(arguments.get("amount", 1.0))
             unit = arguments.get("unit", "item")
-            category = arguments.get("category") or guess_category(name_val)
+            store_val = arguments.get("store")
+            if store_val:
+                store_val = store_val.strip()
+            
+            raw_category = arguments.get("category")
+            # If the LLM mistakenly put the store into the category field, clean it up
+            known_stores = ["amazon", "fred meyer", "trader joe's", "safeway", "new seasons"]
+            if raw_category and raw_category.strip().lower() in known_stores:
+                if not store_val:
+                    store_val = raw_category.strip()
+                category = guess_category(name_val)
+            elif raw_category:
+                category = raw_category.strip()
+            else:
+                category = guess_category(name_val)
+
             notes = arguments.get("notes")
 
             # Check if exists
@@ -247,6 +278,8 @@ class LLMAgent:
             for item in grocery_list.items:
                 if item.name.lower() == name_val.lower() and item.unit.lower() == unit.lower():
                     item.amount += amount
+                    if store_val:
+                        item.store = store_val
                     exists = True
                     break
             
@@ -257,12 +290,28 @@ class LLMAgent:
                     unit=unit,
                     category=category,
                     manual=True,
+                    store=store_val,
                     notes=notes
                 ))
             
-            action_msg = f"Added {amount} {unit} '{name_val}' to grocery list"
+            store_suffix = f" tagged to {store_val}" if store_val else ""
+            action_msg = f"Added {amount} {unit} '{name_val}'{store_suffix} to grocery list"
             actions.append(action_msg)
-            return f"Success: Added {name_val} to shopping list.", actions
+            return f"Success: Added {name_val}{store_suffix} to shopping list.", actions
+
+        elif name == "tag_grocery_item":
+            name_val = arguments.get("name", "").strip().lower()
+            store_val = arguments.get("store", "").strip()
+            found = False
+            for item in grocery_list.items:
+                if name_val in item.name.lower() or item.name.lower() in name_val:
+                    item.store = store_val
+                    found = True
+                    action_msg = f"Tagged '{item.name}' to {store_val}"
+                    actions.append(action_msg)
+                    return f"Success: Tagged {item.name} to {store_val}.", actions
+            
+            return f"Could not find an item matching '{arguments.get('name')}' on the grocery list to tag.", actions
 
         elif name == "remove_grocery_item":
             name_val = arguments.get("name", "").strip().lower()

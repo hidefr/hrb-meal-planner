@@ -33,7 +33,27 @@ import { MealHistoryModal } from './components/MealHistoryModal';
 import { ClearedGroceryModal } from './components/ClearedGroceryModal';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery' | 'guide'>('plan');
+  const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery' | 'guide'>(() => {
+    try {
+      const saved = localStorage.getItem('tastecraft_active_tab');
+      if (saved && ['chat', 'plan', 'grocery', 'guide'].includes(saved)) {
+        return saved as 'chat' | 'plan' | 'grocery' | 'guide';
+      }
+    } catch {
+      // Ignore localStorage errors (e.g. private browsing restrictions)
+    }
+    return 'plan';
+  });
+
+  const handleSelectTab = (tab: 'chat' | 'plan' | 'grocery' | 'guide') => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('tastecraft_active_tab', tab);
+    } catch {
+      // Ignore
+    }
+  };
+
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings>({
@@ -243,7 +263,7 @@ export const App: React.FC = () => {
           {/* 5 Navigation Buttons */}
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setActiveTab('plan')}
+              onClick={() => handleSelectTab('plan')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'plan'
                   ? 'bg-emerald-600 text-white shadow-xs'
@@ -255,7 +275,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('grocery')}
+              onClick={() => handleSelectTab('grocery')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition relative cursor-pointer ${
                 activeTab === 'grocery'
                   ? 'bg-emerald-600 text-white shadow-xs'
@@ -274,7 +294,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('chat')}
+              onClick={() => handleSelectTab('chat')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'chat'
                   ? 'bg-emerald-600 text-white shadow-xs'
@@ -286,7 +306,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('guide')}
+              onClick={() => handleSelectTab('guide')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'guide'
                   ? 'bg-emerald-600 text-white shadow-xs'
@@ -354,7 +374,7 @@ export const App: React.FC = () => {
       {/* Mobile Sticky Bottom Navigation Bar (Compact Titles) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
         <button
-          onClick={() => setActiveTab('plan')}
+          onClick={() => handleSelectTab('plan')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
             activeTab === 'plan' ? 'text-emerald-700 font-bold' : 'text-slate-500'
           }`}
@@ -364,7 +384,7 @@ export const App: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('grocery')}
+          onClick={() => handleSelectTab('grocery')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition relative cursor-pointer ${
             activeTab === 'grocery' ? 'text-emerald-700 font-bold' : 'text-slate-500'
           }`}
@@ -381,7 +401,7 @@ export const App: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('chat')}
+          onClick={() => handleSelectTab('chat')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
             activeTab === 'chat' ? 'text-emerald-700 font-bold' : 'text-slate-500'
           }`}
@@ -391,7 +411,7 @@ export const App: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('guide')}
+          onClick={() => handleSelectTab('guide')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
             activeTab === 'guide' ? 'text-emerald-700 font-bold' : 'text-slate-500'
           }`}
@@ -454,7 +474,7 @@ export const App: React.FC = () => {
           onSave={handleSaveSettings}
           onRefreshData={loadData}
           onResetPlan={handleResetPlan}
-          onOpenGuide={() => setActiveTab('guide')}
+          onOpenGuide={() => handleSelectTab('guide')}
           isSyncing={isSyncing}
         />
       )}
