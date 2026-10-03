@@ -9,6 +9,7 @@ import { Recipe } from '../types';
 import { useSpeechSynthesis } from '../services/useSpeechSynthesis';
 import { sendChatMessage } from '../services/api';
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor } from '@capacitor/core';
 
 interface VoiceCookingModeProps {
@@ -167,11 +168,49 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   };
 
   // Stop everything immediately
+  const wakeLockRef = useRef<any>(null);
+
+  const requestScreenKeepAwake = async () => {
+    // 1. Native Android via Capacitor KeepAwake plugin
+    try {
+      await KeepAwake.keepAwake();
+    } catch (e) {
+      // Ignore if on web or unsupported
+    }
+
+    // 2. Web Screen Wake Lock API (Chrome on Android / Tablet / Desktop)
+    try {
+      if ('wakeLock' in navigator && (navigator as any).wakeLock) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch (e) {
+      // Wake lock request can fail if device battery saver is active
+    }
+  };
+
+  const releaseScreenKeepAwake = async () => {
+    // 1. Release Native KeepAwake
+    try {
+      await KeepAwake.allowSleep();
+    } catch (e) {}
+
+    // 2. Release Web Screen Wake Lock
+    try {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    } catch (e) {}
+  };
+
+  // Terminate voice speech & recognition & restore device sleep
   const terminateAll = useCallback(() => {
     isClosedRef.current = true;
     isListeningRef.current = false;
     isThinkingRef.current = false;
     setIsListening(false);
+
+    releaseScreenKeepAwake();
 
     if (recognitionRef.current) {
       try {
@@ -626,9 +665,13 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
   };
 
-  // Initial greeting and read aloud
+  // Initial greeting, hands-free start, and KEEP SCREEN AWAKE
   useEffect(() => {
     isClosedRef.current = false;
+
+    // Keep screen awake while in cooking mode
+    requestScreenKeepAwake();
+
     if (steps.length > 0 && autoSpeak) {
       speak(`Cooking mode for ${recipe.title}. Cookware set to ${cookware.replace('_', ' ')}. Step 1: ${steps[0]}`);
     }
