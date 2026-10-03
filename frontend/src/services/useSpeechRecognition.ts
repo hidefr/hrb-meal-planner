@@ -34,13 +34,29 @@ export function useSpeechRecognition({ onTranscriptChange, getCurrentText }: Use
     setIsListening(false);
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
       return;
+    }
+
+    // Step 1: On Android Chrome, SpeechRecognition fails silently with 'not-allowed'
+    // unless explicit microphone permission was already requested and granted via getUserMedia!
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Release hardware track immediately so SpeechRecognition can bind to it
+        stream.getTracks().forEach(track => track.stop());
+      } catch (err: any) {
+        console.warn("Microphone access prompt error:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          alert("Microphone permission was not allowed. In Chrome, tap the tune/lock icon next to the URL bar and enable Microphone for this site.");
+          return;
+        }
+      }
     }
 
     // Set base text to whatever is currently in the text box so we NEVER override existing text
@@ -93,7 +109,7 @@ export function useSpeechRecognition({ onTranscriptChange, getCurrentText }: Use
       recognition.onerror = (event: any) => {
         console.warn("Speech recognition error:", event.error);
         if (event.error === 'not-allowed') {
-          alert("Microphone permission was denied. Please allow microphone access in your browser settings.");
+          alert("Microphone permission was denied. Tap the settings/lock icon in Chrome's address bar next to the URL to verify Microphone is set to Allow.");
         }
         setIsListening(false);
       };
