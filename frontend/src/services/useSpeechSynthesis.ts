@@ -6,9 +6,11 @@ export function useSpeechSynthesis() {
   const isNative = Capacitor.isNativePlatform();
   const isSpeakingRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackTokenRef = useRef(0);
 
   const stop = useCallback(async () => {
     isSpeakingRef.current = false;
+    playbackTokenRef.current++; // Invalidate any ongoing TTS network requests immediately!
 
     // 1. Stop HTML5 Audio stream
     if (currentAudioRef.current) {
@@ -33,6 +35,32 @@ export function useSpeechSynthesis() {
       } catch {}
     }
   }, [isNative]);
+
+  const pause = useCallback(() => {
+    if (currentAudioRef.current && !currentAudioRef.current.paused) {
+      try {
+        currentAudioRef.current.pause();
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+      try {
+        window.speechSynthesis.pause();
+      } catch {}
+    }
+  }, []);
+
+  const resume = useCallback(() => {
+    if (currentAudioRef.current && currentAudioRef.current.paused) {
+      try {
+        currentAudioRef.current.play();
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+      try {
+        window.speechSynthesis.resume();
+      } catch {}
+    }
+  }, []);
 
   const speak = useCallback(async (
     text: string,
@@ -60,6 +88,9 @@ export function useSpeechSynthesis() {
       if (onEnd) onEnd();
     };
 
+    // Use a unique playback token to discard stale async fetch responses if user clicks Pause/Exit/Next
+    const playbackToken = ++playbackTokenRef.current;
+
     // 🌟 Tier 1: High-Fidelity Natural Neural Voice (via Backend Neural Audio Stream)
     // Pre-buffers full audio blob to prevent stuttering, pausing, or missing words on mobile/tablet Wi-Fi
     try {
@@ -73,13 +104,22 @@ export function useSpeechSynthesis() {
         throw new Error(`TTS server responded with ${response.status}`);
       }
 
+      // If user exited or started new step while fetching, abort immediately!
+      if (playbackTokenRef.current !== playbackToken || !isSpeakingRef.current) {
+        return;
+      }
+
       const blob = await response.blob();
+      if (playbackTokenRef.current !== playbackToken || !isSpeakingRef.current) {
+        return;
+      }
+
       const objectUrl = URL.createObjectURL(blob);
       const audio = new Audio(objectUrl);
       currentAudioRef.current = audio;
 
       audio.ontimeupdate = () => {
-        if (audio.duration && onProgress) {
+        if (audio.duration && onProgress && !audio.paused) {
           const ratio = Math.min(1.0, audio.currentTime / audio.duration);
           onProgress(ratio);
         }
@@ -97,12 +137,15 @@ export function useSpeechSynthesis() {
       audio.onerror = (e) => {
         URL.revokeObjectURL(objectUrl);
         console.warn("Neural audio playback error, falling back to local TTS:", e);
-        fallbackSpeak(cleanText, handleFinished);
+        if (playbackTokenRef.current === playbackToken && isSpeakingRef.current) {
+          fallbackSpeak(cleanText, handleFinished);
+        }
       };
 
       await audio.play();
       return;
     } catch (err) {
+      if (playbackTokenRef.current !== playbackToken || !isSpeakingRef.current) return;
       console.warn("Failed to stream neural audio, trying fallback:", err);
       fallbackSpeak(cleanText, handleFinished);
     }
@@ -145,5 +188,5 @@ export function useSpeechSynthesis() {
     onDone();
   }, [isNative]);
 
-  return { speak, stop, isSupported: true, isSpeakingRef };
+  return { speak, stop, pause, resume, isSupported: true, isSpeakingRef };
 }

@@ -10,6 +10,9 @@ router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 DEFAULT_VOICE = "en-US-AvaNeural" # Warm, natural, friendly chef voice
 
+# In-memory LRU-like audio cache for instantaneous, jitter-free playback
+_TTS_CACHE: dict[tuple[str, str, str], bytes] = {}
+
 @router.get("/tts")
 async def text_to_speech(
     text: str = Query(..., description="Text to synthesize"),
@@ -32,6 +35,17 @@ async def text_to_speech(
     if not rate.endswith("%"):
         rate = "+10%"
 
+    cache_key = (clean_text, voice, rate)
+    if cache_key in _TTS_CACHE:
+        return Response(
+            content=_TTS_CACHE[cache_key],
+            media_type="audio/mpeg",
+            headers={
+                "Content-Type": "audio/mpeg",
+                "Cache-Control": "public, max-age=86400, immutable"
+            }
+        )
+
     try:
         communicate = edge_tts.Communicate(clean_text, voice=voice, rate=rate, pitch="+0Hz")
         audio_stream = io.BytesIO()
@@ -42,6 +56,10 @@ async def text_to_speech(
         audio_bytes = audio_stream.getvalue()
         if not audio_bytes:
             raise HTTPException(status_code=500, detail="Failed to synthesize audio")
+
+        # Cache if under 1000 items
+        if len(_TTS_CACHE) < 1000:
+            _TTS_CACHE[cache_key] = audio_bytes
 
         return Response(
             content=audio_bytes,

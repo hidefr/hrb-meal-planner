@@ -261,7 +261,27 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0d0a08] flex flex-col antialiased text-[#f5eedf]">
-      {/* Unified Desktop Navigation Bar (Only ONE bar on desktop) */}
+      {/* Mobile Top App Bar (Ensures clock, battery, Wi-Fi notch have safe breathing room) */}
+      <header className="md:hidden sticky top-0 z-30 bg-[#140f0c]/95 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-2.5 shadow-md flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-white shadow-sm border border-amber-500/30">
+            <ChefHat className="w-4 h-4 text-amber-200" />
+          </div>
+          <span className="font-serif font-bold text-base tracking-wide text-[#f5eedf]">TasteCraft</span>
+          <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            Pann AI
+          </span>
+        </div>
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-1.5 rounded-lg text-[#c8bba9] hover:bg-[#201712] hover:text-[#f5eedf] transition"
+          title="Settings & Tools"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+      </header>
+
+      {/* Unified Desktop Navigation Bar */}
       <header className="sticky top-0 z-30 bg-[#140f0c]/90 backdrop-blur-md border-b border-amber-950/50 px-4 py-2.5 shadow-md hidden md:block">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Brand */}
@@ -393,7 +413,7 @@ export const App: React.FC = () => {
       </main>
 
       {/* Mobile Sticky Bottom Navigation Bar (Compact Titles) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#140f0c]/95 backdrop-blur-md border-t border-amber-950/50 px-3 py-2 flex items-center justify-around shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#140f0c]/95 backdrop-blur-md border-t border-amber-950/50 px-3 pt-2 pb-safe flex items-center justify-around shadow-lg">
         <button
           onClick={() => handleSelectTab('plan')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${

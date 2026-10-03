@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mic, MicOff, Volume2, VolumeX, ChevronRight, ChevronLeft,
   X, Check, RotateCcw, Sparkles, ChefHat, Clock, Users,
-  List, Play, ArrowRight, HelpCircle, Bot, Loader2, MessageSquare,
+  List, Play, Pause, ArrowRight, HelpCircle, Bot, Loader2, MessageSquare,
   AlertTriangle, ShieldAlert, Flame, Info, Sun, Moon, Gauge
 } from 'lucide-react';
 import { Recipe } from '../types';
@@ -119,12 +119,13 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
   // Word-by-word reading progress ratio (0.0 to 1.0)
   const [speechProgress, setSpeechProgress] = useState<number>(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Hotword AI trigger state: when user says "Cookie", "Chef", or "Hey Chef", we await their question
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
 
-  const { speak, stop: stopSpeaking, isSpeakingRef } = useSpeechSynthesis();
+  const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, isSpeakingRef } = useSpeechSynthesis();
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
   const isThinkingRef = useRef(false);
@@ -251,24 +252,37 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setAiResponse(null);
     setPanicRescue(null);
     setSpeechProgress(0);
+    setIsPaused(false);
 
-    const guidance = getCookwareGuidance(stepText);
-    let speechScript = `Step ${stepIdx + 1}. ${stepText}`;
-    if (guidance) {
-      speechScript += ` Sensorial tip for ${cookware.replace('_', ' ')}: ${guidance.cue}`;
-    }
+    // Speak purely the instruction text so words highlight 1:1 in sync without drifting!
+    const speechScript = stepText;
 
     if (autoSpeak) {
       speak(
         speechScript,
         () => setSpeechProgress(0),
-        () => setSpeechProgress(1.0),
+        () => {
+          setSpeechProgress(1.0);
+          setIsPaused(false);
+        },
         'en-US-AvaNeural',
         voiceSpeed,
         (progress) => setSpeechProgress(progress)
       );
     }
-  }, [steps, autoSpeak, speak, cookware, voiceSpeed]);
+  }, [steps, autoSpeak, speak, voiceSpeed]);
+
+  const handleTogglePause = useCallback(() => {
+    if (isPaused) {
+      resumeSpeaking();
+      setIsPaused(false);
+      setVoiceFeedback('Resumed reading');
+    } else {
+      pauseSpeaking();
+      setIsPaused(true);
+      setVoiceFeedback('⏸️ Paused');
+    }
+  }, [isPaused, resumeSpeaking, pauseSpeaking]);
 
   // Read all ingredients
   const speakIngredients = useCallback(() => {
@@ -469,8 +483,20 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('pause') ||
       text.includes('stop speaking')
     ) {
-      stopSpeaking();
-      setVoiceFeedback('Paused speech');
+      pauseSpeaking();
+      setIsPaused(true);
+      setVoiceFeedback('⏸️ Paused speech');
+      return;
+    }
+
+    if (
+      text === 'resume' ||
+      text === 'continue reading' ||
+      text === 'play'
+    ) {
+      resumeSpeaking();
+      setIsPaused(false);
+      setVoiceFeedback('▶️ Resumed speech');
       return;
     }
 
@@ -722,9 +748,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         }`}
       />
 
-      {/* Top Header Bar - Tablet & Mobile Friendly */}
+      {/* Top Header Bar - Tablet & Mobile Friendly (with safe area top for Android status bar) */}
       <header
-        className={`px-3 py-2.5 sm:px-6 sm:py-3.5 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
+        className={`px-3 pt-safe pb-2.5 sm:px-6 sm:py-3.5 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
           theme === 'light'
             ? 'bg-[#F2ECE1]/95 border-[#E5DAC6]'
             : 'bg-[#211A15]/95 border-[#34271D]'
@@ -1005,8 +1031,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         </div>
       </div>
 
-      {/* Main Content Stage - Optimized for Phone & 11" Tablet Countertop Viewing */}
-      <main className="flex-1 overflow-y-auto p-3 sm:p-6 md:p-8 flex flex-col max-w-5xl mx-auto w-full z-10">
+      {/* Main Content Stage - Optimized for Phone & 11" Tablet Countertop Viewing (Portrait & Landscape) */}
+      <main className="flex-1 overflow-y-auto px-3 sm:px-6 md:px-8 py-2 sm:py-4 flex flex-col max-w-5xl mx-auto w-full z-10 pl-safe pr-safe">
         {showHelp && (
           <div
             className={`border rounded-2xl p-4 sm:p-5 mb-5 text-xs space-y-2 animate-fadeIn shrink-0 shadow-lg ${
@@ -1298,7 +1324,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       {/* Big Bottom Action Controls - Phone & 11" Tablet Countertop Optimized */}
       <footer
-        className={`p-3 sm:p-5 md:p-6 border-t backdrop-blur-md flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10 transition-colors ${
+        className={`px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5 pb-safe border-t backdrop-blur-md flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10 transition-colors pl-safe pr-safe ${
           theme === 'light'
             ? 'bg-[#F2ECE1]/95 border-[#E5DAC6]'
             : 'bg-[#211A15]/95 border-[#34271D]'
@@ -1325,25 +1351,43 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           <span>Prev</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (activeSection === 'ingredients') {
-              speakIngredients();
-            } else {
-              speakCurrentStep(currentStep);
-            }
-          }}
-          className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
-            theme === 'light'
-              ? 'bg-white hover:bg-stone-50 text-amber-900 border-amber-300'
-              : 'bg-[#291F18] hover:bg-[#34271D] text-amber-300 border-amber-500/30'
-          }`}
-        >
-          <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="hidden xs:inline">Repeat</span>
-          <span className="xs:hidden">Re-read</span>
-        </button>
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleTogglePause}
+            className={`px-3 sm:px-6 md:px-7 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
+              isPaused
+                ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 border-amber-600 shadow-amber-500/20 animate-pulse'
+                : theme === 'light'
+                ? 'bg-white hover:bg-stone-50 text-stone-800 border-[#DED3BD]'
+                : 'bg-[#291F18] hover:bg-[#34271D] text-stone-200 border-[#423223]'
+            }`}
+            title={isPaused ? "Resume Reading" : "Pause Reading"}
+          >
+            {isPaused ? <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> : <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />}
+            <span>{isPaused ? 'Resume' : 'Pause'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (activeSection === 'ingredients') {
+                speakIngredients();
+              } else {
+                speakCurrentStep(currentStep);
+              }
+            }}
+            className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
+              theme === 'light'
+                ? 'bg-white hover:bg-stone-50 text-amber-900 border-amber-300'
+                : 'bg-[#291F18] hover:bg-[#34271D] text-amber-300 border-amber-500/30'
+            }`}
+          >
+            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden xs:inline">Repeat</span>
+            <span className="xs:hidden">Re-read</span>
+          </button>
+        </div>
 
         <button
           type="button"

@@ -50,8 +50,13 @@ app.add_middleware(
 @app.middleware("http")
 async def add_no_cache_headers(request, call_next):
     response = await call_next(request)
-    # Always prevent caching on HTML, JS, JSON API, and root paths
     path = request.url.path
+    # Allow caching on TTS audio so repeated recipe steps play instantly without network lag
+    if path.startswith("/api/voice/tts"):
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        return response
+
+    # Always prevent caching on HTML, JS, JSON API, and root paths
     if path == "/" or path.endswith(".html") or path.endswith(".js") or path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
