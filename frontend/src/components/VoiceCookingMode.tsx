@@ -20,7 +20,30 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   onClose,
   onSwitchDay,
 }) => {
-  const [currentStep, setCurrentStep] = useState(0);
+  const stepStorageKey = `tastecraft_cooking_step_${recipe.id || recipe.title}`;
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(stepStorageKey);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+    } catch {
+      // Ignore
+    }
+    return 0;
+  });
+
+  const updateStep = (newStep: number | ((prev: number) => number)) => {
+    setCurrentStep(prev => {
+      const resolved = typeof newStep === 'function' ? newStep(prev) : newStep;
+      try {
+        localStorage.setItem(stepStorageKey, String(resolved));
+      } catch {}
+      return resolved;
+    });
+  };
+
   const [activeSection, setActiveSection] = useState<'ingredients' | 'steps'>('steps');
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string>('Say "Next step", "Read ingredients", or "Repeat"');
@@ -68,7 +91,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('continue')
     ) {
       setActiveSection('steps');
-      setCurrentStep(prev => {
+      updateStep(prev => {
         const next = Math.min(steps.length - 1, prev + 1);
         speakCurrentStep(next);
         return next;
@@ -84,7 +107,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('last step')
     ) {
       setActiveSection('steps');
-      setCurrentStep(prev => {
+      updateStep(prev => {
         const back = Math.max(0, prev - 1);
         speakCurrentStep(back);
         return back;
@@ -125,7 +148,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('begin')
     ) {
       setActiveSection('steps');
-      setCurrentStep(0);
+      updateStep(0);
       speakCurrentStep(0);
       return;
     }
@@ -136,7 +159,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       const targetStep = parseInt(stepMatch[1], 10) - 1;
       if (targetStep >= 0 && targetStep < steps.length) {
         setActiveSection('steps');
-        setCurrentStep(targetStep);
+        updateStep(targetStep);
         speakCurrentStep(targetStep);
         return;
       }
@@ -511,7 +534,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           type="button"
           onClick={() => {
             setActiveSection('steps');
-            setCurrentStep(prev => {
+            updateStep(prev => {
               const back = Math.max(0, prev - 1);
               speakCurrentStep(back);
               return back;
@@ -544,10 +567,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           onClick={() => {
             if (activeSection === 'ingredients') {
               setActiveSection('steps');
-              setCurrentStep(0);
+              updateStep(0);
               speakCurrentStep(0);
             } else if (currentStep < steps.length - 1) {
-              setCurrentStep(prev => {
+              updateStep(prev => {
                 const next = prev + 1;
                 speakCurrentStep(next);
                 return next;

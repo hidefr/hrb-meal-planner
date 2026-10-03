@@ -57,7 +57,30 @@ export const App: React.FC = () => {
 
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
-  const [cookingModeData, setCookingModeData] = useState<{ recipe: Recipe; day: string } | null>(null);
+  const [cookingModeData, setCookingModeData] = useState<{ recipe: Recipe; day: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('tastecraft_cooking_mode');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  });
+
+  const handleSetCookingMode = (data: { recipe: Recipe; day: string } | null) => {
+    setCookingModeData(data);
+    try {
+      if (data) {
+        localStorage.setItem('tastecraft_cooking_mode', JSON.stringify(data));
+      } else {
+        localStorage.removeItem('tastecraft_cooking_mode');
+      }
+    } catch {
+      // Ignore
+    }
+  };
   const [userSettings, setUserSettings] = useState<UserSettings>({
     stores: ["Amazon", "Fred Meyer", "Trader Joe's", "Safeway", "New Seasons"],
     available_preferences: [
@@ -343,7 +366,7 @@ export const App: React.FC = () => {
             onAiSuggestDay={handleAiSuggestDay}
             onAiPlanWeek={handleAiPlanWeek}
             onOpenHistory={handleOpenMealHistory}
-            onStartCookingMode={(recipe, day) => setCookingModeData({ recipe, day })}
+            onStartCookingMode={(recipe, day) => handleSetCookingMode({ recipe, day })}
           />
         )}
 
@@ -452,7 +475,7 @@ export const App: React.FC = () => {
           onStartCookingMode={() => {
             const current = selectedRecipeData;
             setSelectedRecipeData(null);
-            setCookingModeData(current);
+            handleSetCookingMode(current);
           }}
         />
       )}
@@ -461,7 +484,7 @@ export const App: React.FC = () => {
         <VoiceCookingMode
           recipe={cookingModeData.recipe}
           dayOfWeek={cookingModeData.day}
-          onClose={() => setCookingModeData(null)}
+          onClose={() => handleSetCookingMode(null)}
         />
       )}
 
