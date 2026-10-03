@@ -441,18 +441,20 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
 
     // 8. HOTWORD DETECTION FOR AI QUESTIONS:
-    // Only answer if the user uses the hotword: "cookie", "hey cookie", "chef", "hey chef"
+    // Only answer if the user uses the hotword: "tastecraft", "hey tastecraft", "chef", "hey chef"
     // OR if they recently activated question mode.
     const hasHotword =
-      text.includes('cookie') ||
-      text.includes('hey cookie') ||
+      text.includes('tastecraft') ||
+      text.includes('taste craft') ||
+      text.includes('hey tastecraft') ||
+      text.includes('hey taste craft') ||
       text.includes('chef') ||
       text.includes('hey chef');
 
     if (hasHotword || isAwaitingQuestion) {
       // Clean hotword from query
       let query = rawTranscript
-        .replace(/\b(hey\s+cookie|cookie|hey\s+chef|chef)\b/gi, '')
+        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef)\b/gi, '')
         .trim();
 
       if (!query || query.length < 3) {
@@ -463,7 +465,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
         awaitingQuestionTimerRef.current = setTimeout(() => {
           setIsAwaitingQuestion(false);
-          setVoiceFeedback('Say "Next step" or "Cookie [question]"');
+          setVoiceFeedback('Say "Next step" or "TasteCraft [question]"');
         }, 8000);
         return;
       }
@@ -908,7 +910,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           </div>
           {isAwaitingQuestion && (
             <div className="px-2 py-0.5 rounded-full bg-amber-500 text-stone-950 font-bold text-[10px] animate-pulse">
-              Cookie listening... speak your question now!
+              TasteCraft listening... speak your question now!
             </div>
           )}
           {lastHeard && (
@@ -973,7 +975,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               <div>• <strong className="font-bold">"Repeat step" / "Repeat":</strong> Re-read step with sensory guidance</div>
               <div>• <strong className="font-bold">"Step X":</strong> Jump directly to any step (e.g. "Step 3")</div>
               <div>• <strong className="font-bold">"Pause" / "Stop":</strong> Stop audio speech</div>
-              <div>• <strong className="font-bold">"Cookie [question]" or "Chef":</strong> Wakes AI for tailored cooking answers</div>
+              <div>• <strong className="font-bold">"TasteCraft [question]" or "Chef":</strong> Wakes AI for tailored cooking answers</div>
               <div>• <strong className="font-bold">"Panic" / "Food sticking":</strong> Immediate rescue strategy</div>
             </div>
           </div>
@@ -1031,7 +1033,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                     theme === 'light' ? 'text-amber-900' : 'text-amber-300'
                   }`}
                 >
-                  Cookie Kitchen Assistant
+                  TasteCraft AI Culinary Coach
                 </span>
               </div>
               {!isThinking && (
