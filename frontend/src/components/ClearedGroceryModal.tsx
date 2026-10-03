@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Plus, ShoppingBag, Check, RotateCcw, Store } from 'lucide-react';
+import { X, Search, Plus, ShoppingBag, Check, RotateCcw, Store, Trash2 } from 'lucide-react';
 import { ClearedGroceryItem, GroceryList } from '../types';
-import { fetchClearedGroceryHistory, restoreClearedGroceryItem } from '../services/api';
+import {
+  fetchClearedGroceryHistory,
+  restoreClearedGroceryItem,
+  deleteClearedGroceryItem,
+  clearAllClearedGroceryHistory
+} from '../services/api';
 
 interface ClearedGroceryModalProps {
   onClose: () => void;
@@ -16,6 +21,7 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadCleared = async () => {
     setLoading(true);
@@ -43,6 +49,31 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, clearedId: string) => {
+    e.stopPropagation();
+    try {
+      setDeletingId(clearedId);
+      await deleteClearedGroceryItem(clearedId);
+      setItems(prev => prev.filter(i => i.id !== clearedId));
+    } catch (err) {
+      console.error('Failed to delete cleared item:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm("Are you sure you want to clear your entire grocery history? This cannot be undone.")) {
+      return;
+    }
+    try {
+      await clearAllClearedGroceryHistory();
+      setItems([]);
+    } catch (err) {
+      console.error('Failed to clear all history:', err);
+    }
+  };
+
   const filtered = items.filter(item => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -66,21 +97,21 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
             <div>
               <h2 className="text-base font-bold text-slate-900">Cleared Items History</h2>
               <p className="text-xs text-slate-500">
-                Log of past cleared groceries (up to 200) — tap to re-add to your shopping list
+                Log of past cleared groceries ({items.length}) — tap to re-add or remove
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition"
+            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Search */}
-        <div className="p-3 sm:px-5 border-b border-slate-100 bg-white">
-          <div className="relative">
+        {/* Search & Actions Bar */}
+        <div className="p-3 sm:px-5 border-b border-slate-100 bg-white flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
@@ -90,6 +121,17 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
               className="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 focus:outline-hidden transition shadow-inner"
             />
           </div>
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="px-3 py-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+              title="Delete all cleared items"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Clear All</span>
+            </button>
+          )}
         </div>
 
         {/* Items List */}
@@ -109,11 +151,12 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
           ) : (
             filtered.map((item) => {
               const isRestored = restoredIds.has(item.id);
+              const isDeleting = deletingId === item.id;
 
               return (
                 <div
                   key={item.id}
-                  className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-3 hover:bg-slate-50/50 transition"
+                  className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-3 hover:bg-slate-50/50 transition group"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -141,28 +184,40 @@ export const ClearedGroceryModal: React.FC<ClearedGroceryModalProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRestore(item.id)}
-                    disabled={isRestored}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition cursor-pointer shrink-0 ${
-                      isRestored
-                        ? 'bg-emerald-100 text-emerald-800 cursor-default'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                    }`}
-                  >
-                    {isRestored ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Added</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Back</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(item.id)}
+                      disabled={isRestored || isDeleting}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition cursor-pointer ${
+                        isRestored
+                          ? 'bg-emerald-100 text-emerald-800 cursor-default'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                      }`}
+                    >
+                      {isRestored ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Added</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Back</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(e, item.id)}
+                      disabled={isDeleting}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                      title="Delete from history"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })

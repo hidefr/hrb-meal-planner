@@ -346,6 +346,19 @@ class Storage:
         self.save_grocery_list(g_list)
         return restored
 
+    def delete_cleared_item(self, cleared_id: str) -> bool:
+        history = self.get_cleared_grocery_history()
+        orig_len = len(history)
+        history = [h for h in history if h.id != cleared_id]
+        if len(history) < orig_len:
+            self._save_raw_json(self.cleared_grocery_file, [h.model_dump() for h in history])
+            return True
+        return False
+
+    def clear_all_cleared_history(self) -> bool:
+        self._save_raw_json(self.cleared_grocery_file, [])
+        return True
+
     # ==================== Conversations & Chat History ====================
     def _read_conversations(self) -> List[Conversation]:
         data = self._read_raw_json(self.conversations_file, [])

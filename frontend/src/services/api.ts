@@ -261,6 +261,20 @@ export async function restoreClearedGroceryItem(clearedId: string): Promise<Groc
   return res.json();
 }
 
+export async function deleteClearedGroceryItem(clearedId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/grocery/cleared-history/${clearedId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete cleared item from history');
+}
+
+export async function clearAllClearedGroceryHistory(): Promise<void> {
+  const res = await fetch(`${API_BASE}/grocery/cleared-history`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to clear history');
+}
+
 // ==================== Conversations & Chat ====================
 export async function fetchConversations(): Promise<ConversationSummary[]> {
   const res = await fetch(`${API_BASE}/chat/conversations`);

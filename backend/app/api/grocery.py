@@ -110,3 +110,15 @@ async def restore_cleared_item(cleared_id: str):
     if not restored:
         raise HTTPException(status_code=404, detail="Cleared item not found in history")
     return storage.get_grocery_list()
+
+@router.delete("/cleared-history/{cleared_id}")
+async def delete_cleared_item(cleared_id: str):
+    deleted = storage.delete_cleared_item(cleared_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Cleared item not found in history")
+    return {"status": "success", "id": cleared_id}
+
+@router.delete("/cleared-history")
+async def clear_all_cleared_history():
+    storage.clear_all_cleared_history()
+    return {"status": "success"}
