@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """You are TasteCraft, an expert culinary AI co-pilot and weekly meal planner for a household.
 Your mission is to help the couple effortlessly plan delicious, realistic meals for the week, tailor recipes to their exact cravings/constraints (e.g., one-pot, under 30 minutes, low-carb, pantry ingredients, kid-friendly), and generate a clean, consolidated grocery list.
 
+TODAY'S DAY AND DATE:
+{current_day_and_date}
+CRITICAL CALENDAR INSTRUCTION: When the user says "today", "tonight", "for tonight", or "this evening", it ALWAYS refers to {today_day_of_week}! When the user says "tomorrow", it refers to {tomorrow_day_of_week}! Never assign "today" or "tonight" to Monday unless today is actually Monday.
+
 CURRENT MEAL PLAN:
 {current_meal_plan}
 
@@ -192,8 +196,19 @@ class LLMAgent:
         """
         actions = []
         
+        import datetime
+        now = datetime.datetime.now()
+        today_name = now.strftime("%A")
+        tomorrow_name = (now + datetime.timedelta(days=1)).strftime("%A")
+
         if name == "set_meal_slot":
-            day = arguments.get("day_of_week", "").strip().capitalize()
+            raw_day = arguments.get("day_of_week", "").strip().lower()
+            if raw_day in ["today", "tonight", "this evening"]:
+                day = today_name
+            elif raw_day in ["tomorrow", "tomorrow night"]:
+                day = tomorrow_name
+            else:
+                day = raw_day.capitalize()
             title = arguments.get("title", "Untitled Recipe")
             
             # Build ingredients
@@ -243,7 +258,13 @@ class LLMAgent:
             return f"Success: Set {day} to {title} with {len(ingredients)} ingredients and attached cooking guides.", actions
 
         elif name == "clear_meal_slot":
-            day = arguments.get("day_of_week", "").strip().capitalize()
+            raw_day = arguments.get("day_of_week", "").strip().lower()
+            if raw_day in ["today", "tonight", "this evening"]:
+                day = today_name
+            elif raw_day in ["tomorrow", "tomorrow night"]:
+                day = tomorrow_name
+            else:
+                day = raw_day.capitalize()
             for slot in meal_plan.slots:
                 if slot.day_of_week.lower() == day.lower():
                     slot.recipe = None
@@ -337,7 +358,16 @@ class LLMAgent:
         Processes a user message, runs tool calls against Hermes/LLM,
         and returns (reply_text, actions_performed, updated_plan, updated_grocery)
         """
+        import datetime
+        now = datetime.datetime.now()
+        today_name = now.strftime("%A")
+        tomorrow_name = (now + datetime.timedelta(days=1)).strftime("%A")
+        full_date_str = now.strftime("%A, %B %d, %Y")
+
         system_content = SYSTEM_PROMPT.format(
+            current_day_and_date=full_date_str,
+            today_day_of_week=today_name,
+            tomorrow_day_of_week=tomorrow_name,
             current_meal_plan=format_meal_plan_summary(meal_plan),
             current_grocery_list=format_grocery_summary(grocery_list)
         )
