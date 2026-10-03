@@ -63,6 +63,20 @@ async def health_check():
         "telegram_enabled": bool(settings.telegram_bot_token)
     }
 
+@app.get("/dist/TasteCraft.apk")
+@app.get("/TasteCraft.apk")
+@app.get("/download")
+async def download_apk():
+    apk_path = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist" / "TasteCraft.apk"
+    if apk_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            path=str(apk_path),
+            filename="TasteCraft.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    return {"error": "APK not found"}
+
 # Check if built frontend exists in frontend/dist
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
