@@ -1,41 +1,126 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { Capacitor } from '@capacitor/core';
 
 export function useSpeechSynthesis() {
-  const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const isNative = Capacitor.isNativePlatform();
+  const isSpeakingRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (!isSupported || !text) {
-      if (onEnd) onEnd();
-      return;
+  const stop = useCallback(async () => {
+    isSpeakingRef.current = false;
+
+    // 1. Stop HTML5 Audio stream
+    if (currentAudioRef.current) {
+      try {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+        currentAudioRef.current = null;
+      } catch {}
     }
 
-    try {
-      window.speechSynthesis.cancel(); // Stop any previous speech
-      const cleanText = text.replace(/[*#_~`]/g, '').trim();
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.lang = navigator.language || 'en-US';
-
-      if (onEnd) {
-        utterance.onend = () => onEnd();
-        utterance.onerror = () => onEnd();
-      }
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn("Speech synthesis error:", e);
-      if (onEnd) onEnd();
-    }
-  }, [isSupported]);
-
-  const stop = useCallback(() => {
-    if (isSupported) {
+    // 2. Stop Web Speech Synthesis
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch {}
     }
-  }, [isSupported]);
 
-  return { speak, stop, isSupported };
+    // 3. Stop Native Android TTS
+    if (isNative) {
+      try {
+        await TextToSpeech.stop();
+      } catch {}
+    }
+  }, [isNative]);
+
+  const speak = useCallback(async (
+    text: string,
+    onStart?: () => void,
+    onEnd?: () => void,
+    voiceId: string = 'en-US-AvaNeural'
+  ) => {
+    if (!text) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    await stop(); // Stop any currently playing audio first
+
+    const cleanText = text.replace(/[*#_~`]/g, '').trim();
+    isSpeakingRef.current = true;
+    if (onStart) onStart();
+
+    const handleFinished = () => {
+      isSpeakingRef.current = false;
+      currentAudioRef.current = null;
+      if (onEnd) onEnd();
+    };
+
+    // 🌟 Tier 1: High-Fidelity Natural Neural Voice (via Backend Neural Audio Stream)
+    // Works flawlessly across both Web and Android Tablet / Phone!
+    try {
+      const audioUrl = `/api/voice/tts?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(cleanText)}`;
+      const audio = new Audio(audioUrl);
+      currentAudioRef.current = audio;
+
+      audio.onplay = () => {
+        isSpeakingRef.current = true;
+      };
+
+      audio.onended = () => {
+        handleFinished();
+      };
+
+      audio.onerror = (e) => {
+        console.warn("Neural audio streaming error, falling back to local TTS:", e);
+        fallbackSpeak(cleanText, handleFinished);
+      };
+
+      await audio.play();
+      return;
+    } catch (err) {
+      console.warn("Failed to stream neural audio, trying fallback:", err);
+      fallbackSpeak(cleanText, handleFinished);
+    }
+  }, [stop]);
+
+  // Fallback if offline or network unavailable
+  const fallbackSpeak = useCallback(async (cleanText: string, onDone: () => void) => {
+    if (isNative) {
+      try {
+        await TextToSpeech.speak({
+          text: cleanText,
+          lang: 'en-US',
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+          category: 'ambient',
+        });
+        onDone();
+        return;
+      } catch (e) {
+        console.warn("Capacitor Native TextToSpeech error:", e);
+      }
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.lang = 'en-US';
+        utterance.onend = () => onDone();
+        utterance.onerror = () => onDone();
+        window.speechSynthesis.speak(utterance);
+        return;
+      } catch (e) {
+        console.warn("Web speech synthesis fallback failed:", e);
+      }
+    }
+
+    onDone();
+  }, [isNative]);
+
+  return { speak, stop, isSupported: true, isSpeakingRef };
 }

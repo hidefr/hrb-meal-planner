@@ -32,6 +32,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { MealHistoryModal } from './components/MealHistoryModal';
 import { ClearedGroceryModal } from './components/ClearedGroceryModal';
 import { VoiceCookingMode } from './components/VoiceCookingMode';
+import { AntiHomeworkBuilder } from './components/AntiHomeworkBuilder';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'plan' | 'grocery' | 'guide'>(() => {
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
   const [isMealHistoryOpen, setIsMealHistoryOpen] = useState(false);
   const [historyTargetDay, setHistoryTargetDay] = useState<string | null>(null);
   const [isClearedGroceryOpen, setIsClearedGroceryOpen] = useState(false);
+  const [isAntiHomeworkOpen, setIsAntiHomeworkOpen] = useState(false);
 
   const loadData = async () => {
     setIsSyncing(true);
@@ -266,20 +268,20 @@ export const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col antialiased text-slate-900">
+    <div className="min-h-screen bg-[#0d0a08] flex flex-col antialiased text-[#f5eedf]">
       {/* Unified Desktop Navigation Bar (Only ONE bar on desktop) */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-xs border-b border-slate-200 px-4 py-2.5 shadow-xs hidden md:block">
+      <header className="sticky top-0 z-30 bg-[#140f0c]/90 backdrop-blur-md border-b border-amber-950/50 px-4 py-2.5 shadow-md hidden md:block">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs shadow-emerald-200">
-              <ChefHat className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-white shadow-sm shadow-amber-950/50 border border-amber-500/30">
+              <ChefHat className="w-4 h-4 text-amber-200" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-base tracking-tight text-slate-900">TasteCraft</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800">
-                  AI
+                <span className="font-serif font-bold text-lg tracking-wide text-[#f5eedf]">TasteCraft</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Pann AI
                 </span>
               </div>
             </div>
@@ -291,8 +293,8 @@ export const App: React.FC = () => {
               onClick={() => handleSelectTab('plan')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'plan'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-950'
+                  : 'text-[#c8bba9] hover:bg-[#201712] hover:text-[#f5eedf]'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -303,15 +305,15 @@ export const App: React.FC = () => {
               onClick={() => handleSelectTab('grocery')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition relative cursor-pointer ${
                 activeTab === 'grocery'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-950'
+                  : 'text-[#c8bba9] hover:bg-[#201712] hover:text-[#f5eedf]'
               }`}
             >
               <ShoppingBag className="w-4 h-4" />
               <span>Grocery List</span>
               {uncheckedGroceryCount > 0 && (
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeTab === 'grocery' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
+                  activeTab === 'grocery' ? 'bg-[#140f0c] text-amber-300' : 'bg-amber-500/20 text-amber-300'
                 }`}>
                   {uncheckedGroceryCount}
                 </span>
@@ -322,8 +324,8 @@ export const App: React.FC = () => {
               onClick={() => handleSelectTab('chat')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'chat'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-950'
+                  : 'text-[#c8bba9] hover:bg-[#201712] hover:text-[#f5eedf]'
               }`}
             >
               <MessageSquare className="w-4 h-4" />
@@ -334,8 +336,8 @@ export const App: React.FC = () => {
               onClick={() => handleSelectTab('guide')}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'guide'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-950'
+                  : 'text-[#c8bba9] hover:bg-[#201712] hover:text-[#f5eedf]'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -345,10 +347,10 @@ export const App: React.FC = () => {
             {/* 5th button: Settings (with Copy Plan, Sync, Guide, Preferences) */}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 shadow-2xs"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer text-[#c8bba9] bg-[#1a1410] hover:bg-[#251d17] hover:text-[#f5eedf] border border-amber-950/60 shadow-2xs"
               title="Settings & Tools (Copy Plan, Sync, Guide, Preferences)"
             >
-              <Settings className="w-4 h-4 text-slate-600" />
+              <Settings className="w-4 h-4 text-[#a89988]" />
               <span>Settings</span>
             </button>
           </div>
@@ -367,6 +369,7 @@ export const App: React.FC = () => {
             onAiPlanWeek={handleAiPlanWeek}
             onOpenHistory={handleOpenMealHistory}
             onStartCookingMode={(recipe, day) => handleSetCookingMode({ recipe, day })}
+            onOpenAntiHomework={() => setIsAntiHomeworkOpen(true)}
           />
         )}
 
@@ -398,11 +401,11 @@ export const App: React.FC = () => {
       </main>
 
       {/* Mobile Sticky Bottom Navigation Bar (Compact Titles) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#140f0c]/95 backdrop-blur-md border-t border-amber-950/50 px-3 py-2 flex items-center justify-around shadow-lg">
         <button
           onClick={() => handleSelectTab('plan')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
-            activeTab === 'plan' ? 'text-emerald-700 font-bold' : 'text-slate-500'
+            activeTab === 'plan' ? 'text-amber-400 font-bold' : 'text-[#8c7b6d]'
           }`}
         >
           <Calendar className="w-5 h-5" />
@@ -412,13 +415,13 @@ export const App: React.FC = () => {
         <button
           onClick={() => handleSelectTab('grocery')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition relative cursor-pointer ${
-            activeTab === 'grocery' ? 'text-emerald-700 font-bold' : 'text-slate-500'
+            activeTab === 'grocery' ? 'text-amber-400 font-bold' : 'text-[#8c7b6d]'
           }`}
         >
           <div className="relative">
             <ShoppingBag className="w-5 h-5" />
             {uncheckedGroceryCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-emerald-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-2 bg-amber-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 {uncheckedGroceryCount > 9 ? '9+' : uncheckedGroceryCount}
               </span>
             )}
@@ -429,7 +432,7 @@ export const App: React.FC = () => {
         <button
           onClick={() => handleSelectTab('chat')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
-            activeTab === 'chat' ? 'text-emerald-700 font-bold' : 'text-slate-500'
+            activeTab === 'chat' ? 'text-amber-400 font-bold' : 'text-[#8c7b6d]'
           }`}
         >
           <MessageSquare className="w-5 h-5" />
@@ -439,17 +442,17 @@ export const App: React.FC = () => {
         <button
           onClick={() => handleSelectTab('guide')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer ${
-            activeTab === 'guide' ? 'text-emerald-700 font-bold' : 'text-slate-500'
+            activeTab === 'guide' ? 'text-amber-400 font-bold' : 'text-[#8c7b6d]'
           }`}
         >
           <BookOpen className="w-5 h-5" />
           <span className="text-[10px]">Guide</span>
         </button>
 
-        {/* 5th button: Settings (with copy plan, guide, refresh, sync all in!) */}
+        {/* 5th button: Settings */}
         <button
           onClick={() => setIsSettingsOpen(true)}
-          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer text-slate-500 hover:text-emerald-700"
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition cursor-pointer text-[#8c7b6d] hover:text-amber-400"
           title="Settings & Tools"
         >
           <Settings className="w-5 h-5" />
@@ -536,6 +539,23 @@ export const App: React.FC = () => {
           onClose={() => setIsClearedGroceryOpen(false)}
           onItemRestored={(updatedList) => setGroceryList(updatedList)}
         />
+      )}
+
+      {isAntiHomeworkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-2xl">
+            <AntiHomeworkBuilder
+              onCommitMeal={(recipe) => {
+                setIsAntiHomeworkOpen(false);
+                // Assign to today or first slot
+                const today = daysOfWeek[0] || 'Monday';
+                handleSaveManualMeal(today, recipe);
+                handleSetCookingMode({ recipe, day: today });
+              }}
+              onClose={() => setIsAntiHomeworkOpen(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
