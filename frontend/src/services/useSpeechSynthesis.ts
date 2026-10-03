@@ -38,7 +38,9 @@ export function useSpeechSynthesis() {
     text: string,
     onStart?: () => void,
     onEnd?: () => void,
-    voiceId: string = 'en-US-AvaNeural'
+    voiceId: string = 'en-US-AvaNeural',
+    speed: number = 1.15, // Default ~15% faster for snappy natural pacing
+    onProgress?: (progress: number) => void // 0.0 to 1.0 progress for word highlighting
   ) => {
     if (!text) {
       if (onEnd) onEnd();
@@ -54,13 +56,18 @@ export function useSpeechSynthesis() {
     const handleFinished = () => {
       isSpeakingRef.current = false;
       currentAudioRef.current = null;
+      if (onProgress) onProgress(1.0);
       if (onEnd) onEnd();
     };
 
     // 🌟 Tier 1: High-Fidelity Natural Neural Voice (via Backend Neural Audio Stream)
     // Pre-buffers full audio blob to prevent stuttering, pausing, or missing words on mobile/tablet Wi-Fi
     try {
-      const audioUrl = `/api/voice/tts?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(cleanText)}`;
+      // Convert speed to edge-tts rate format (e.g. 1.15 -> +15%, 1.25 -> +25%, 1.0 -> +0%)
+      const speedPct = Math.round((speed - 1.0) * 100);
+      const rateParam = speedPct >= 0 ? `+${speedPct}%` : `${speedPct}%`;
+
+      const audioUrl = `/api/voice/tts?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(cleanText)}&rate=${encodeURIComponent(rateParam)}`;
       const response = await fetch(audioUrl);
       if (!response.ok) {
         throw new Error(`TTS server responded with ${response.status}`);
@@ -70,6 +77,13 @@ export function useSpeechSynthesis() {
       const objectUrl = URL.createObjectURL(blob);
       const audio = new Audio(objectUrl);
       currentAudioRef.current = audio;
+
+      audio.ontimeupdate = () => {
+        if (audio.duration && onProgress) {
+          const ratio = Math.min(1.0, audio.currentTime / audio.duration);
+          onProgress(ratio);
+        }
+      };
 
       audio.onplay = () => {
         isSpeakingRef.current = true;

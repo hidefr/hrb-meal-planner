@@ -13,10 +13,11 @@ DEFAULT_VOICE = "en-US-AvaNeural" # Warm, natural, friendly chef voice
 @router.get("/tts")
 async def text_to_speech(
     text: str = Query(..., description="Text to synthesize"),
-    voice: str = Query(DEFAULT_VOICE, description="Edge TTS voice code")
+    voice: str = Query(DEFAULT_VOICE, description="Edge TTS voice code"),
+    rate: str = Query("+10%", description="Edge TTS rate e.g. +0%, +10%, +20%")
 ):
     """
-    Synthesize human-natural, warm, empathetic speech using neural neural TTS.
+    Synthesize human-natural, warm, empathetic speech using neural TTS.
     Returns audio/mpeg stream directly playable in browser or Android app.
     """
     clean_text = text.strip()
@@ -27,8 +28,12 @@ async def text_to_speech(
     if len(clean_text) > 2000:
         clean_text = clean_text[:2000]
 
+    # Validate rate formatting
+    if not rate.endswith("%"):
+        rate = "+10%"
+
     try:
-        communicate = edge_tts.Communicate(clean_text, voice=voice, rate="+0%", pitch="+0Hz")
+        communicate = edge_tts.Communicate(clean_text, voice=voice, rate=rate, pitch="+0Hz")
         audio_stream = io.BytesIO()
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
