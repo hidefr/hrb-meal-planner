@@ -58,10 +58,17 @@ export function useSpeechSynthesis() {
     };
 
     // 🌟 Tier 1: High-Fidelity Natural Neural Voice (via Backend Neural Audio Stream)
-    // Works flawlessly across both Web and Android Tablet / Phone!
+    // Pre-buffers full audio blob to prevent stuttering, pausing, or missing words on mobile/tablet Wi-Fi
     try {
       const audioUrl = `/api/voice/tts?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(cleanText)}`;
-      const audio = new Audio(audioUrl);
+      const response = await fetch(audioUrl);
+      if (!response.ok) {
+        throw new Error(`TTS server responded with ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const audio = new Audio(objectUrl);
       currentAudioRef.current = audio;
 
       audio.onplay = () => {
@@ -69,11 +76,13 @@ export function useSpeechSynthesis() {
       };
 
       audio.onended = () => {
+        URL.revokeObjectURL(objectUrl);
         handleFinished();
       };
 
       audio.onerror = (e) => {
-        console.warn("Neural audio streaming error, falling back to local TTS:", e);
+        URL.revokeObjectURL(objectUrl);
+        console.warn("Neural audio playback error, falling back to local TTS:", e);
         fallbackSpeak(cleanText, handleFinished);
       };
 

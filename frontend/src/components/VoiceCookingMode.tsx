@@ -565,31 +565,32 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       {/* Warm ambient kitchen glow */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Top Header Bar - Pann Warm Luxury Aesthetic */}
-      <header className="p-4 sm:p-5 border-b border-[#2d221a] bg-[#1a1411]/95 backdrop-blur-md flex items-center justify-between gap-3 shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-700/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold shadow-lg">
-            <ChefHat className="w-6 h-6" />
+      {/* Top Header Bar - Responsive Mobile & 11" Tablet Countertop */}
+      <header className="px-3 py-2.5 sm:px-5 sm:py-4 border-b border-[#2d221a] bg-[#1a1411]/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20">
+        {/* Left: Chef icon & Title */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-700/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold shadow-lg shrink-0">
+            <ChefHat className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                {dayOfWeek} • Sensorial Voice Coach
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                {dayOfWeek}
               </span>
-              <span className="text-xs text-stone-400 hidden sm:inline">
-                Prep: {recipe.prep_time_mins}m | Cook: {recipe.cook_time_mins}m
+              <span className="text-[10px] text-stone-400 hidden sm:inline">
+                Prep: {recipe.prep_time_mins}m • Cook: {recipe.cook_time_mins}m
               </span>
             </div>
-            <h1 className="text-base sm:text-xl font-serif font-bold text-white truncate max-w-sm sm:max-w-md mt-0.5">
+            <h1 className="text-sm sm:text-lg md:text-xl font-serif font-bold text-white truncate max-w-[180px] sm:max-w-xs md:max-w-md">
               {recipe.title}
             </h1>
           </div>
         </div>
 
-        {/* Cookware Picker & Controls */}
-        <div className="flex items-center gap-2">
-          {/* Cookware Selector Pill */}
-          <div className="hidden md:flex items-center bg-[#251d17] border border-[#3e3025] rounded-xl p-0.5 text-xs">
+        {/* Right Controls: Cookware, Panic, Audio, Mic, and Prominent Exit */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Cookware Selector Pill (Tablet/Desktop) */}
+          <div className="hidden lg:flex items-center bg-[#251d17] border border-[#3e3025] rounded-xl p-0.5 text-xs">
             {[
               { id: 'stainless', label: 'Stainless' },
               { id: 'cast_iron', label: 'Cast Iron' },
@@ -615,14 +616,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           <button
             type="button"
             onClick={() => triggerPanicRescue("Help! My pan is smoking and food is sticking!")}
-            className="px-3 py-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-950/40 cursor-pointer transition animate-pulse"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/60 text-rose-300 text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer transition animate-pulse"
             title="Panic Rescue - Instant troubleshooting advice"
           >
             <ShieldAlert className="w-4 h-4 text-rose-400" />
-            <span className="hidden sm:inline">Panic Rescue</span>
+            <span className="hidden md:inline">Panic</span>
           </button>
 
-          {/* Audio speech test / un-mute */}
+          {/* Audio speech toggle */}
           <button
             type="button"
             onClick={() => {
@@ -634,57 +635,58 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 speakCurrentStep(currentStep);
               }
             }}
-            className={`p-2.5 rounded-xl border transition cursor-pointer ${
+            className={`p-2 sm:p-2.5 rounded-xl border transition cursor-pointer ${
               autoSpeak
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                 : 'bg-[#251d17] text-stone-400 border-[#3e3025]'
             }`}
             title={autoSpeak ? "Voice Audio is On" : "Voice Audio is Muted"}
           >
-            {autoSpeak ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            {autoSpeak ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
 
           {/* Hands-Free Mic Toggle */}
           <button
             type="button"
             onClick={toggleHandsFree}
-            className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
               isListening
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-lg shadow-amber-950'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md shadow-amber-950'
                 : 'bg-[#251d17] text-stone-400 border-[#3e3025] hover:text-white'
             }`}
           >
             {isListening ? (
               <>
                 <Mic className="w-4 h-4 text-amber-400 animate-bounce" />
-                <span className="hidden sm:inline">Listening...</span>
+                <span className="hidden sm:inline">Listening</span>
               </>
             ) : (
               <>
                 <MicOff className="w-4 h-4" />
-                <span className="hidden sm:inline">Start Mic</span>
+                <span className="hidden sm:inline">Mic</span>
               </>
             )}
           </button>
 
-          {/* Help toggle */}
+          {/* Help toggle (hidden on smallest phone) */}
           <button
             type="button"
             onClick={() => setShowHelp(prev => !prev)}
-            className="p-2.5 text-stone-400 hover:text-white rounded-xl bg-[#251d17] border border-[#3e3025] transition cursor-pointer"
+            className="hidden sm:flex p-2 sm:p-2.5 text-stone-400 hover:text-white rounded-xl bg-[#251d17] border border-[#3e3025] transition cursor-pointer"
             title="Voice Commands Help"
           >
-            <HelpCircle className="w-5 h-5" />
+            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
-          {/* Close button */}
+          {/* PROMINENT HIGH-CONTRAST EXIT BUTTON */}
           <button
             type="button"
             onClick={handleExitCooking}
-            className="p-2.5 text-stone-400 hover:text-white rounded-xl bg-[#251d17] border border-[#3e3025] transition cursor-pointer"
-            title="Exit Cooking Mode"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-stone-800 to-stone-700 hover:from-rose-900 hover:to-rose-800 text-stone-200 hover:text-white border border-stone-600 hover:border-rose-500 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md active:scale-95"
+            title="Exit Cooking Mode & Return to Meal Plan"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 text-amber-300" />
+            <span>Exit</span>
           </button>
         </div>
       </header>
@@ -728,8 +730,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         </div>
       </div>
 
-      {/* Main Content Stage - Optimized for 11" Tablet Countertop Viewing */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-8 flex flex-col max-w-5xl mx-auto w-full z-10">
+      {/* Main Content Stage - Optimized for Phone & 11" Tablet Countertop Viewing */}
+      <main className="flex-1 overflow-y-auto p-3 sm:p-6 md:p-8 flex flex-col max-w-5xl mx-auto w-full z-10">
         {showHelp && (
           <div className="bg-amber-950/80 border border-amber-500/50 rounded-2xl p-4 sm:p-5 mb-5 text-xs text-amber-200 space-y-2 animate-fadeIn shrink-0">
             <h3 className="font-bold text-sm text-white flex items-center gap-2">
@@ -827,20 +829,20 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             </div>
 
             {/* Giant Step Card for easy 11" tablet viewing across the kitchen counter */}
-            <div className="bg-[#181310]/90 border border-[#3b2d22] rounded-3xl p-6 sm:p-12 shadow-2xl relative overflow-hidden">
-              <div className="flex items-start gap-5 sm:gap-8">
-                <span className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-stone-950 font-black text-2xl sm:text-4xl flex items-center justify-center shrink-0 shadow-xl shadow-amber-950">
+            <div className="bg-[#181310]/90 border border-[#3b2d22] rounded-2xl sm:rounded-3xl p-4 sm:p-8 md:p-12 shadow-2xl relative overflow-hidden">
+              <div className="flex items-start gap-3.5 sm:gap-6 md:gap-8">
+                <span className="w-11 h-11 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-stone-950 font-black text-lg sm:text-3xl md:text-4xl flex items-center justify-center shrink-0 shadow-xl shadow-amber-950">
                   {currentStep + 1}
                 </span>
-                <div className="space-y-4 flex-1">
-                  <p className="text-xl sm:text-3xl font-serif font-medium text-white leading-relaxed sm:leading-loose">
+                <div className="space-y-3 sm:space-y-4 flex-1 min-w-0">
+                  <p className="text-base sm:text-2xl md:text-3xl font-serif font-medium text-white leading-relaxed sm:leading-loose">
                     {currentStepText}
                   </p>
 
                   {/* Sensorial coaching callout for cookware */}
                   {activeGuidance && (
-                    <div className="bg-[#241a14] border border-amber-500/30 rounded-2xl p-4 text-xs sm:text-sm text-amber-200/90 flex items-start gap-3 mt-4">
-                      <Flame className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="bg-[#241a14] border border-amber-500/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 text-xs sm:text-sm text-amber-200/90 flex items-start gap-2.5 sm:gap-3 mt-3 sm:mt-4">
+                      <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0 mt-0.5" />
                       <div>
                         <strong className="text-white block font-sans mb-0.5">Sensorial Cookware Coach:</strong>
                         <span>{activeGuidance.tip}</span>
@@ -915,8 +917,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         )}
       </main>
 
-      {/* Big Bottom Action Controls - Tablet Optimized */}
-      <footer className="p-4 sm:p-6 border-t border-[#2d221a] bg-[#1a1411]/95 backdrop-blur-md flex items-center justify-between gap-3 shrink-0 z-10">
+      {/* Big Bottom Action Controls - Phone & 11" Tablet Countertop Optimized */}
+      <footer className="p-3 sm:p-5 md:p-6 border-t border-[#2d221a] bg-[#1a1411]/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10">
         <button
           type="button"
           onClick={() => {
@@ -928,10 +930,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             });
           }}
           disabled={currentStep === 0 && activeSection === 'steps'}
-          className="px-5 sm:px-8 py-4 rounded-2xl bg-[#241c17] hover:bg-[#34271f] disabled:opacity-30 text-stone-200 text-sm sm:text-base font-bold flex items-center gap-2 transition cursor-pointer border border-[#3a2c21] shadow-lg"
+          className="px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-[#241c17] hover:bg-[#34271f] disabled:opacity-30 text-stone-200 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border border-[#3a2c21] shadow-lg shrink-0"
         >
-          <ChevronLeft className="w-5 h-5" />
-          <span>Previous</span>
+          <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span>Prev</span>
         </button>
 
         <button
@@ -943,10 +945,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               speakCurrentStep(currentStep);
             }
           }}
-          className="px-5 sm:px-8 py-4 rounded-2xl bg-[#241c17] hover:bg-[#34271f] text-amber-400 text-sm sm:text-base font-bold flex items-center gap-2 transition cursor-pointer border border-amber-500/30 shadow-lg"
+          className="px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-[#241c17] hover:bg-[#34271f] text-amber-400 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border border-amber-500/30 shadow-lg shrink-0"
         >
-          <RotateCcw className="w-5 h-5" />
-          <span>Repeat Step</span>
+          <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="hidden xs:inline">Repeat</span>
+          <span className="xs:hidden">Re-read</span>
         </button>
 
         <button
@@ -966,10 +969,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               handleExitCooking();
             }
           }}
-          className="px-7 sm:px-10 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-sm sm:text-base font-bold flex items-center gap-2 transition cursor-pointer shadow-xl shadow-amber-950 font-black"
+          className="px-4 sm:px-8 md:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer shadow-xl shadow-amber-950 font-black shrink-0"
         >
-          <span>{currentStep === steps.length - 1 ? 'Done Cooking' : 'Next Step'}</span>
-          <ChevronRight className="w-5 h-5" />
+          <span>{currentStep === steps.length - 1 ? 'Done' : 'Next Step'}</span>
+          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </footer>
     </div>

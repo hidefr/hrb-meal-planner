@@ -19,9 +19,8 @@ body {
   background-color: #0d0a08;
   color: #f5eedf;
   min-height: 100vh;
-  /* Support iPhone & tablet safe area */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  min-height: -webkit-fill-available;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Warm ambient scrollbar */
