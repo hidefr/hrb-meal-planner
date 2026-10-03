@@ -46,6 +46,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prevent aggressive Android WebView caching so updates apply immediately on refresh/reopen
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    # Always prevent caching on HTML, JS, JSON API, and root paths
+    path = request.url.path
+    if path == "/" or path.endswith(".html") or path.endswith(".js") or path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # Include API Routers
 app.include_router(chat.router)
 app.include_router(meal_plan.router)

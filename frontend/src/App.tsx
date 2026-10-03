@@ -58,26 +58,15 @@ export const App: React.FC = () => {
 
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
-  const [cookingModeData, setCookingModeData] = useState<{ recipe: Recipe; day: string } | null>(() => {
-    try {
-      const saved = localStorage.getItem('tastecraft_cooking_mode');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
-  });
+  // Do NOT auto-restore cooking mode on app reboot - this prevents the app from getting stuck
+  // in cooking mode when closing and reopening. Users always land cleanly on the Meal Plan board.
+  const [cookingModeData, setCookingModeData] = useState<{ recipe: Recipe; day: string } | null>(null);
 
   const handleSetCookingMode = (data: { recipe: Recipe; day: string } | null) => {
     setCookingModeData(data);
     try {
-      if (data) {
-        localStorage.setItem('tastecraft_cooking_mode', JSON.stringify(data));
-      } else {
-        localStorage.removeItem('tastecraft_cooking_mode');
-      }
+      // Clear legacy stuck keys from localStorage
+      localStorage.removeItem('tastecraft_cooking_mode');
     } catch {
       // Ignore
     }
@@ -132,6 +121,9 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    try {
+      localStorage.removeItem('tastecraft_cooking_mode');
+    } catch {}
     loadData();
   }, []);
 

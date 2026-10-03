@@ -229,9 +229,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
 
     stopSpeaking();
+
+    try {
+      localStorage.removeItem('tastecraft_cooking_mode');
+    } catch {}
   }, [stopSpeaking]);
 
   const handleExitCooking = useCallback(() => {
+    try {
+      localStorage.removeItem('tastecraft_cooking_mode');
+    } catch {}
     terminateAll();
     onClose();
   }, [terminateAll, onClose]);
