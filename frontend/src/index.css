@@ -260,6 +260,36 @@ body.theme-light,
   background-color: rgba(44, 33, 23, 0.45) !important;
 }
 
+/* TasteCraft Anti-Homework Hero Banner in Light Biscuit Mode */
+[data-theme="light"] .antihomework-hero-banner,
+[data-theme="light"] .bg-gradient-to-r.from-\[\#1c1612\].via-\[\#241a13\].to-\[\#1a1410\],
+[data-theme="light"] .bg-gradient-to-r.from-\[\#201712\].via-\[\#2d1f18\].to-\[\#1a130f\],
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"],
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] {
+  background-image: linear-gradient(to right, #FFFBF3, #FAF3E6, #F5EDE0) !important;
+  background-color: #FAF3E6 !important;
+  border-color: #E6DBC9 !important;
+  box-shadow: 0 4px 20px -2px rgba(180, 83, 9, 0.08) !important;
+}
+
+[data-theme="light"] .antihomework-hero-banner .font-serif,
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"] .font-serif,
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] .font-serif,
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"] h1,
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"] h2,
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"] h3,
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] h1,
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] h2,
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] h3 {
+  color: #2C2117 !important;
+}
+
+[data-theme="light"] .antihomework-hero-banner p,
+[data-theme="light"] [class*="from-[#1c1612]"][class*="to-[#1a1410]"] p,
+[data-theme="light"] [class*="from-[#201712]"][class*="to-[#1a130f]"] p {
+  color: #7D6B58 !important;
+}
+
 /* Light scrollbars */
 [data-theme="light"] ::-webkit-scrollbar-track {
   background: #FAF6EF;

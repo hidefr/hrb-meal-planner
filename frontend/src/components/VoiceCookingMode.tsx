@@ -145,6 +145,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
   // Hotword AI trigger state: when user says "Cookie", "Chef", or "Hey Chef", we await their question
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
+  const isAwaitingQuestionRef = useRef(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
 
   // Multi-turn Conversational Memory for cooking session (e.g. asking substitute then saying "yes add that")
@@ -443,9 +444,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       setVoiceFeedback(`Chef: "${answer.slice(0, 30)}..."`);
 
       // 🌟 AUTOMATIC ON-THE-FLY INGREDIENT & RECIPE ADAPTATION
+      let spokenAnswer = answer;
       if (res.ingredient_update && res.ingredient_update.new_name) {
         const { old_name, new_name, new_amount, new_unit, notes } = res.ingredient_update;
         
+        // Ensure the spoken response clearly mentions what was substituted if the answer didn't already
+        const lowerAnswer = answer.toLowerCase();
+        const lowerNew = new_name.toLowerCase();
+        if (!lowerAnswer.includes(lowerNew) && !lowerAnswer.includes('substitute') && !lowerAnswer.includes('replace') && !lowerAnswer.includes('added')) {
+          spokenAnswer = old_name
+            ? `Substituted ${old_name} with ${new_name} in your recipe cards. ${answer}`
+            : `Added ${new_name} to your recipe cards. ${answer}`;
+        }
+
         setCurrentRecipe(prev => {
           const oldClean = (old_name || '').toLowerCase().trim();
           let matched = false;
@@ -529,9 +540,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         });
       }
 
+      setAiResponse(spokenAnswer);
+      setVoiceFeedback(`Chef: "${spokenAnswer.slice(0, 32)}..."`);
+
       if (autoSpeak) {
         speak(
-          answer,
+          spokenAnswer,
           undefined,
           () => {
             // Unblock processing once answer finishes speaking
@@ -608,6 +622,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
     // Check if the utterance is an intentional command that should interrupt speaking
     const isInterruptIntent =
+      isAwaitingQuestionRef.current ||
       text === 'pause' ||
       text === 'stop' ||
       text === 'quiet' ||
@@ -654,6 +669,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (isSpeakingRef.current && !isInterruptIntent) {
       console.log("Ignoring echo input while speaking:", rawTranscript);
       return;
+    }
+
+    // If awaiting question and user started speaking their query, cut off any ongoing prompt ("I'm listening...") immediately!
+    if (isAwaitingQuestionRef.current && isSpeakingRef.current) {
+      stopSpeaking();
     }
 
     // Capacity & Flow Guard: If Chef is already thinking, formulating advice, or doing an AI query,
@@ -875,7 +895,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith("can we add") ||
       text.startsWith("can i add");
 
-    if (hasHotword || isAwaitingQuestion || isExplicitCulinaryQuestion) {
+    if (hasHotword || isAwaitingQuestionRef.current || isExplicitCulinaryQuestion) {
       // Clean hotword from query
       let query = rawTranscript
         .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef|cookie)\b/gi, '')
@@ -883,11 +903,13 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       if (!query || query.length < 3) {
         // Just the wake word spoken! Activate listening mode and prompt user
+        isAwaitingQuestionRef.current = true;
         setIsAwaitingQuestion(true);
         setVoiceFeedback('Listening for your question...');
         speak("I'm listening, go ahead!", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
         if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
         awaitingQuestionTimerRef.current = setTimeout(() => {
+          isAwaitingQuestionRef.current = false;
           setIsAwaitingQuestion(false);
           setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
         }, 8000);
@@ -895,8 +917,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       }
 
       // Hotword accompanied by question, or explicit substitution question!
+      isAwaitingQuestionRef.current = false;
       setIsAwaitingQuestion(false);
       if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+      stopSpeaking();
       askCookingAssistant(query);
       return;
     }
