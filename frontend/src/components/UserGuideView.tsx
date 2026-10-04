@@ -216,7 +216,7 @@ export const UserGuideView: React.FC = () => {
                     <strong className="text-amber-300">Navigation Commands:</strong> Say <em>"Next step"</em>, <em>"Previous step"</em>, <em>"Reread"</em>, <em>"Jump to step 3"</em>, <em>"Read ingredients"</em>, <em>"Pause"</em>, <em>"Resume"</em>, or <em>"Exit"</em>.
                   </li>
                   <li>
-                    <strong className="text-amber-300">Ask the Chef (Wake-Word & Natural Questions):</strong> Say <em>"Hey Chef"</em> (or <em>"Cookie"</em> / <em>"TasteCraft"</em>) followed by your question, or ask directly: <em>"Hey Chef, can I substitute honey with maple syrup?"</em>. Chef confirms out loud and instantly updates the recipe card and instructions mid-cook!
+                    <strong className="text-amber-300">Ask the Chef (Wake-Word & Natural Questions):</strong> Say <em>"Hey Chef"</em> (or <em>"Chef"</em> / <em>"TasteCraft"</em>) followed by your question, or ask directly: <em>"Hey Chef, can I substitute honey with maple syrup?"</em>. Chef confirms out loud and instantly updates the recipe card and instructions mid-cook!
                   </li>
                   <li>
                     <strong className="text-amber-300">Emergency Kitchen Rescue:</strong> If anything burns, smokes, or sticks, simply say <em>"Panic"</em>, <em>"It's burning"</em>, or <em>"Food is sticking"</em> for instant calming emergency instructions.
@@ -259,7 +259,7 @@ export const UserGuideView: React.FC = () => {
                 Wake-Word & Smart Question Filter
               </div>
               <p className="text-xs text-[#a89988]">
-                To prevent ambient kitchen chit-chat or background television from triggering unwanted responses, Chef requires either a wake-word (<em>"Hey Chef"</em>, <em>"Chef"</em>, <em>"TasteCraft"</em>, <em>"Cookie"</em>) or an explicit culinary query (e.g. <em>"I don't have honey..."</em>, <em>"Can I replace..."</em>). When you speak the hotword alone, Chef responds <em>"I'm listening, go ahead!"</em> and listens for your follow-up.
+                To prevent ambient kitchen chit-chat or background television from triggering unwanted responses, Chef requires either a wake-word (<em>"Hey Chef"</em>, <em>"Chef"</em>, <em>"TasteCraft"</em>) or an explicit culinary query (e.g. <em>"I don't have honey..."</em>, <em>"Can I replace..."</em>). When you speak the hotword alone, Chef responds <em>"I'm listening, go ahead!"</em> and listens for your follow-up.
               </p>
             </div>
 

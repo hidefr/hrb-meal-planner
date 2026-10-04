@@ -268,9 +268,9 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
   const activeConv = conversations.find(c => c.id === activeConvId);
 
   return (
-    <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] md:h-[calc(100vh-120px)] min-h-[380px] max-w-4xl mx-auto bg-[#181310] text-[#f5eedf] rounded-2xl sm:rounded-3xl border border-[#34271D] shadow-xl overflow-hidden relative">
+    <div className="chat-copilot-container flex flex-col flex-1 h-[calc(100dvh-130px)] md:h-[calc(100vh-120px)] min-h-[380px] max-w-4xl mx-auto bg-[#181310] text-[#f5eedf] rounded-2xl sm:rounded-3xl border border-[#34271D] shadow-xl overflow-hidden relative">
       {/* Header bar with Conversation Switcher */}
-      <div className="px-3 sm:px-4 py-2.5 bg-[#211A15] border-b border-[#34271D] flex items-center justify-between gap-2 z-10">
+      <div className="chat-copilot-header px-3 sm:px-4 py-2.5 bg-[#211A15] border-b border-[#34271D] flex items-center justify-between gap-2 z-10">
         <div className="relative">
           <button
             type="button"
@@ -444,7 +444,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
                   className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                     msg.role === 'user'
                       ? 'bg-amber-600 text-white rounded-tr-xs shadow-md'
-                      : 'bg-[#251D17] text-[#f5eedf] rounded-tl-xs border border-[#3B2C21]'
+                      : 'chat-assistant-bubble bg-[#251D17] text-[#f5eedf] rounded-tl-xs border border-[#3B2C21]'
                   }`}
                 >
                   {msg.image_url && (
@@ -512,7 +512,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
       </div>
 
       {/* Input bar */}
-      <div className="p-3 bg-[#211A15] border-t border-[#34271D]">
+      <div className="chat-copilot-footer p-3 bg-[#211A15] border-t border-[#34271D]">
         {selectedImage && (
           <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between animate-fadeIn">
             <div className="flex items-center gap-2.5">

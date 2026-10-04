@@ -8,7 +8,7 @@ TasteCraft is an AI-first weekly meal planner, smart grocery list manager, and i
 
 - **🎙️ Hands-Free Voice Cooking Mode:**
   - **Your Kitchen Sous-Chef:** Tap *"🎙️ Cook"* on any meal card to launch a full-screen, landscape-optimized, high-contrast kitchen view with zero screen timeouts.
-  - **Multi-Turn Conversational AI:** Talk directly to the chef using wake-words (*"Hey Chef"*, *"Chef"*, *"TasteCraft"*, or *"Cookie"*) or direct cooking questions. Chef maintains memory across turns (e.g. asking for a substitute, then saying *"Yes, use that"*).
+  - **Multi-Turn Conversational AI:** Talk directly to the chef using wake-words (*"Hey Chef"*, *"Chef"*, or *"TasteCraft"*) or direct cooking questions. Chef maintains memory across turns (e.g. asking for a substitute, then saying *"Yes, use that"*).
   - **On-The-Fly Recipe Adaptation:** Ask to swap or add ingredients mid-cook (*"Hey Chef, can I substitute honey with maple syrup?"*). Chef speaks verbal confirmation and dynamically updates the recipe's ingredient cards, amounts, and step instructions in place.
   - **Edge Neural Text-to-Speech:** High-fidelity, warm speech streaming via Edge Neural TTS (`en-US-AvaNeural`) with word-by-word visual highlighting and speed toggles (1.0x, 1.15x, 1.3x).
   - **Sensorial Cookware Coaching:** Thermal guidance tailored to your pan (*Stainless Steel Leidenfrost water-drop test, Cast Iron radiant heat, Non-Stick temperature safety, Sheet Pan spacing*).
@@ -33,7 +33,7 @@ TasteCraft is an AI-first weekly meal planner, smart grocery list manager, and i
   - **Cleared History:** Recovers up to 200 checked/cleared items with a single tap.
 
 - **🎨 Dual Adaptive Themes:**
-  - **Biscuit Light Theme:** Warm cookie cream & linen palette (`#FAF6EF`), soft amber borders, high-contrast typography, and light ribbons.
+  - **Biscuit Light Theme:** Warm cream & linen palette (`#FAF6EF`), soft amber borders, high-contrast typography, and light ribbons.
   - **Espresso Dark Theme:** Deep roasted espresso & dark bronze backdrop (`#0D0A08`) for night cooking.
 
 - **📱 Multi-Platform Deployment:**

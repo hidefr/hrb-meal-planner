@@ -128,8 +128,8 @@ body.theme-light,
 [data-theme="light"] .bg-\[\#241a13\],
 [data-theme="light"] .bg-\[\#241c16\],
 [data-theme="light"] .bg-\[\#241C16\],
-[data-theme="light"] .bg-\[\#241c17\],
 [data-theme="light"] .bg-\[\#251d17\],
+[data-theme="light"] .bg-\[\#251D17\],
 [data-theme="light"] .bg-\[\#261e17\],
 [data-theme="light"] .bg-\[\#261E17\],
 [data-theme="light"] .bg-\[\#291f18\],
@@ -300,3 +300,32 @@ body.theme-light,
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: #BFAA92;
 }
+
+/* =========================================================================
+   AI COPILOT LIGHT THEME OVERRIDES
+   Ensures assistant reply bubbles, thinking indicators, and panels
+   render with warm biscuit cream backgrounds and crisp espresso text
+   ========================================================================= */
+
+[data-theme="light"] .chat-assistant-bubble,
+[data-theme="light"] .chat-copilot-container div[class*="bg-[#251D17]"],
+[data-theme="light"] .chat-copilot-container div[class*="bg-[#251d17]"],
+[data-theme="light"] div[class*="bg-[#251D17]"],
+[data-theme="light"] div[class*="bg-[#251d17]"] {
+  background-color: #FFFFFF !important;
+  color: #2C2117 !important;
+  border-color: #E2D7C7 !important;
+  box-shadow: 0 1px 3px 0 rgba(44, 33, 23, 0.06) !important;
+}
+
+[data-theme="light"] .chat-copilot-container {
+  background-color: #FAF6EF !important;
+  border-color: #E2D7C7 !important;
+}
+
+[data-theme="light"] .chat-copilot-header,
+[data-theme="light"] .chat-copilot-footer {
+  background-color: #F5EFE6 !important;
+  border-color: #E2D7C7 !important;
+}
+

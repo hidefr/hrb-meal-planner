@@ -147,7 +147,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const [speechProgress, setSpeechProgress] = useState<number>(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Hotword AI trigger state: when user says "Cookie", "Chef", or "Hey Chef", we await their question
+  // Hotword AI trigger state: when user says "Chef", "Hey Chef", or "TasteCraft", we await their question
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
   const isAwaitingQuestionRef = useRef(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
@@ -674,7 +674,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('reread') ||
       text.includes('chef') ||
       text.includes('tastecraft') ||
-      text.includes('cookie') ||
       text.startsWith('what if') ||
       text.startsWith('can i substitute') ||
       text.startsWith('what can i use') ||
@@ -895,7 +894,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     // 8. HOTWORD & TARGETED COOKING QUESTION DETECTION FOR AI CULINARY COACH:
     // To prevent ambient living room speech from accidentally triggering the chef,
     // we require either:
-    // a) An explicit wake word ("Chef", "Hey Chef", "TasteCraft", "Hey TasteCraft", "Cookie")
+    // a) An explicit wake word ("Chef", "Hey Chef", "TasteCraft", "Hey TasteCraft")
     // b) An active follow-up window after wake-word was primed (isAwaitingQuestion)
     // c) An unmistakable direct culinary inquiry starting specifically with cooking substitution triggers
     const hasHotword =
@@ -904,8 +903,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.includes('tastecraft') ||
       text.includes('taste craft') ||
       text.includes('hey tastecraft') ||
-      text.includes('hey taste craft') ||
-      text.includes('cookie');
+      text.includes('hey taste craft');
 
     // Narrow, unambiguous culinary question openers (cannot be confused with casual banter)
     const isExplicitCulinaryQuestion =
@@ -933,7 +931,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (hasHotword || isAwaitingQuestionRef.current || isExplicitCulinaryQuestion) {
       // Clean hotword from query
       let query = rawTranscript
-        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef|cookie)\b/gi, '')
+        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef)\b/gi, '')
         .trim();
 
       if (!query || query.length < 3) {
@@ -1151,13 +1149,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const words = currentStepText.split(/\s+/).filter(Boolean);
   const activeWordIdx = Math.floor(speechProgress * words.length);
 
-  // Cookie Logo Icon component (matching the warm cookie badge from user screenshot)
-  const CookieLogo = ({ className = "w-7 h-7" }: { className?: string }) => (
+  // TasteCraft Chef Hat Logo Icon component
+  const TasteCraftLogo = ({ className = "w-7 h-7" }: { className?: string }) => (
     <div className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-amber-700 shadow-md border-2 border-amber-300/40 p-1 shrink-0 ${className}`}>
-      <span className="absolute top-1 left-1.5 w-1 h-1 rounded-full bg-[#3d2110]" />
-      <span className="absolute bottom-1.5 left-2 w-1.5 h-1.5 rounded-full bg-[#3d2110]" />
-      <span className="absolute top-2 right-1.5 w-1 h-1 rounded-full bg-[#3d2110]" />
-      <span className="absolute bottom-1 right-2 w-1.5 h-1.5 rounded-full bg-[#3d2110]" />
       <ChefHat className="w-full h-full text-white drop-shadow" />
     </div>
   );
@@ -1187,7 +1181,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       >
         {/* Left: Cookie Logo & Title */}
         <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-          <CookieLogo className="w-9 h-9 sm:w-11 sm:h-11" />
+          <TasteCraftLogo className="w-9 h-9 sm:w-11 sm:h-11" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span
@@ -1538,7 +1532,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               }`}
             >
               <div className="flex items-center gap-2">
-                <CookieLogo className="w-6 h-6" />
+                <TasteCraftLogo className="w-6 h-6" />
                 <span
                   className={`font-bold uppercase tracking-wider text-xs ${
                     theme === 'light' ? 'text-amber-900' : 'text-amber-300'
@@ -1601,7 +1595,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               }`}
             >
               <div className="mx-auto w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center border border-amber-500/30 shadow-inner">
-                <CookieLogo className="w-10 h-10" />
+                <TasteCraftLogo className="w-10 h-10" />
               </div>
 
               <div className="space-y-1.5">
