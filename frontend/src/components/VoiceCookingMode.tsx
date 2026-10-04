@@ -745,11 +745,20 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     const text = rawTranscript.toLowerCase().trim();
     if (!text || text.length < 2) return;
 
-    // Check if user is saying wake word or direct assistant invocation
-    const isDirectedAtChef = /^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)\b/i.test(text);
-    const isWakeWordAlone = /^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)[.!?\s]*$/i.test(text);
+    // Flexible Wake Word Matcher:
+    // Matches anywhere in utterance: "hey chef", "hi chef", "ok chef", "tastecraft", "chief", with optional prefixes/punctuation
+    const WAKE_WORD_REGEX = /(?:\b(?:hey|hi|hello|ok|okay|yo|oh)\s+)?\b(?:chef|chief|tastecraft|taste\s+craft)\b/i;
+    const isDirectedAtChef = WAKE_WORD_REGEX.test(text);
 
-    // Check if the utterance is an intentional command that should interrupt speaking
+    // Extract query by removing wake word and leading/trailing punctuation/spaces
+    let queryWithoutWakeWord = rawTranscript
+      .replace(/(?:\b(?:hey|hi|hello|ok|okay|yo|oh)\s+)?\b(?:chef|chief|tastecraft|taste\s+craft)\b[,\s:;!?-]*/gi, '')
+      .trim();
+
+    // Check if user spoke ONLY the wake word (or trivial filler like "hey chef uh")
+    const isWakeWordAlone = isDirectedAtChef && (!queryWithoutWakeWord || queryWithoutWakeWord.length < 2 || /^(?:um|uh|yes|hey|hi|hello)$/i.test(queryWithoutWakeWord));
+
+    // Check if the utterance is an intentional command or question that should interrupt speaking
     const isInterruptIntent =
       isAwaitingQuestionRef.current ||
       isDirectedAtChef ||
@@ -769,11 +778,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (isSpeakingRef.current && !isInterruptIntent) {
       console.log("Ignoring echo input while speaking:", rawTranscript);
       return;
-    }
-
-    // If awaiting question and user started speaking their query, cut off any ongoing prompt immediately!
-    if (isAwaitingQuestionRef.current && isSpeakingRef.current) {
-      stopSpeaking();
     }
 
     // Capacity & Flow Guard: If Chef is already thinking, only allow emergency stops
@@ -1056,8 +1060,46 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 8. HOTWORD & TARGETED COOKING QUESTION DETECTION FOR AI CULINARY COACH:
-    // Narrow, unambiguous culinary question openers (cannot be confused with casual banter)
+    // 8. WAKE-WORD ONLY (e.g. "Hey Chef", "TasteCraft")
+    if (isWakeWordAlone) {
+      // User invoked Chef without saying the question yet.
+      // Acknowledge quickly and open a listening window for their query!
+      stopSpeaking();
+      isAwaitingQuestionRef.current = true;
+      setIsAwaitingQuestion(true);
+      setVoiceFeedback('👂 Listening... Ask Chef anything');
+      speak("Yes?", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+
+      if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+      awaitingQuestionTimerRef.current = setTimeout(() => {
+        isAwaitingQuestionRef.current = false;
+        setIsAwaitingQuestion(false);
+        setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
+      }, 10000);
+      return;
+    }
+
+    // 9. WAKE-WORD + QUESTION OR ACTIVE LISTENING WINDOW
+    // If the user says "Hey Chef, [anything]" OR we are currently awaiting a question after "Hey Chef":
+    if (isDirectedAtChef && queryWithoutWakeWord && queryWithoutWakeWord.length >= 2) {
+      isAwaitingQuestionRef.current = false;
+      setIsAwaitingQuestion(false);
+      if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+      stopSpeaking();
+      askCookingAssistant(queryWithoutWakeWord);
+      return;
+    }
+
+    if (isAwaitingQuestionRef.current) {
+      isAwaitingQuestionRef.current = false;
+      setIsAwaitingQuestion(false);
+      if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+      stopSpeaking();
+      askCookingAssistant(rawTranscript);
+      return;
+    }
+
+    // 10. EXPLICIT COOKING / RECIPE SUBSTITUTION & MODIFICATION QUESTIONS (Even without wake word)
     const isExplicitCulinaryQuestion =
       text.startsWith("i don't have") ||
       text.startsWith("i dont have") ||
@@ -1085,41 +1127,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith("can we add") ||
       text.startsWith("can i add");
 
-    if (isDirectedAtChef || isAwaitingQuestionRef.current || isExplicitCulinaryQuestion) {
-      // Clean hotword from query
-      let query = rawTranscript
-        .replace(/^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)[,\s:]*/i, '')
-        .trim();
-
-      if (isWakeWordAlone || (!query || query.length < 2)) {
-        // Just the wake word spoken alone! Debounce by 450ms in case the rest of the question is incoming
-        hotwordDebounceTimerRef.current = setTimeout(() => {
-          if (isClosedRef.current) return;
-          isAwaitingQuestionRef.current = true;
-          setIsAwaitingQuestion(true);
-          setVoiceFeedback('Listening for your question...');
-          speak("I'm listening, go ahead!", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
-          if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
-          awaitingQuestionTimerRef.current = setTimeout(() => {
-            isAwaitingQuestionRef.current = false;
-            setIsAwaitingQuestion(false);
-            setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
-          }, 8000);
-        }, 450);
-        return;
-      }
-
-      // Hotword accompanied by question, or explicit substitution question!
-      isAwaitingQuestionRef.current = false;
-      setIsAwaitingQuestion(false);
-      if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+    if (isExplicitCulinaryQuestion) {
       stopSpeaking();
-      askCookingAssistant(query);
+      askCookingAssistant(rawTranscript);
       return;
     }
 
-    // Otherwise, intentionally ignore random kitchen banter / noise!
-    console.log("Ignored non-command speech:", rawTranscript);
+    // 11. UNRECOGNIZED SPEECH FEEDBACK
+    // Inform user on screen and keep feedback alive
+    console.log("Unrecognized command/speech:", rawTranscript);
+    setVoiceFeedback(`Heard: "${rawTranscript}" (Say "Hey Chef" to ask)`);
   }, [steps.length, currentStep, hasStarted, speakCurrentStep, speakIngredients, stopSpeaking, handleExitCooking, askCookingAssistant, isSpeakingRef, triggerPanicRescue, pauseSpeaking, resumeSpeaking, startCookingAtStep, updateStep, voiceSpeed, speak]);
   const startHandsFree = useCallback(async () => {
     if (isClosedRef.current) return;

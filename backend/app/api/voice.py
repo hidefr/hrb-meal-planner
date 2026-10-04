@@ -310,7 +310,11 @@ async def voice_ask(req: VoiceAskRequest):
         "or for a single replacement:\n"
         'ADAPTATION: [{"action": "replace", "old_name": "honey", "new_name": "maple syrup", "new_amount": 1.0, "new_unit": "tbsp", "notes": "whisk in"}]\n'
         "Always include ALL confirmed ingredients in the ADAPTATION list.\n"
-        "If no ingredient change is being made or confirmed, do NOT output any ADAPTATION line."
+        "If no ingredient change is being made or confirmed, do NOT output any ADAPTATION line.\n\n"
+        "7. UNCLEAR, NONSENSICAL, OR OFF-TOPIC QUERIES:\n"
+        "If the cook asks something unclear, garbled, nonsensical, or not related to this recipe, "
+        "reply in 1 warm, natural spoken sentence acknowledging what you heard and letting them know what you can help with: "
+        "e.g. 'I didn't quite catch how that fits with this dish, but I can help you with ingredients, steps, or adjustments!'"
     )
 
     # Build messages with full cooking conversation history
