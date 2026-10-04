@@ -31,6 +31,25 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 }) => {
   const [currentRecipe, setCurrentRecipe] = useState<Recipe>(initialRecipe);
   const stepStorageKey = `tastecraft_cooking_step_${currentRecipe.id || currentRecipe.title}`;
+  
+  // Track saved step from previous session
+  const [savedStep] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(stepStorageKey);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    } catch {}
+    return 0;
+  });
+
+  // Track session start gate and resume prompt:
+  // If savedStep > 0, show prompt to continue vs start over.
+  // If savedStep === 0, show "Begin" screen/button before starting audio/hands-free.
+  const [hasStarted, setHasStarted] = useState<boolean>(false);
+  const [showResumeModal, setShowResumeModal] = useState<boolean>(() => savedStep > 0);
+
   const [currentStep, setCurrentStep] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(stepStorageKey);
@@ -628,6 +647,31 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
+    // 0.5. Begin / Start Cooking or Start Over Voice Commands
+    if (
+      text === 'begin' ||
+      text === 'start' ||
+      text === 'start cooking' ||
+      text === 'lets cook' ||
+      text === "let's cook" ||
+      text === 'begin cooking'
+    ) {
+      if (!hasStarted) {
+        startCookingAtStep(currentStep);
+        return;
+      }
+    }
+
+    if (
+      text === 'start over' ||
+      text === 'restart' ||
+      text === 'start from the beginning' ||
+      text === 'start from step 1'
+    ) {
+      startCookingAtStep(0);
+      return;
+    }
+
     // 1. Next step / Continue
     if (
       text === 'next' ||
@@ -637,6 +681,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.endsWith('next step') ||
       text.startsWith('next step')
     ) {
+      if (!hasStarted) {
+        startCookingAtStep(currentStep);
+        return;
+      }
       setActiveSection('steps');
       updateStep(prev => {
         const next = Math.min(steps.length - 1, prev + 1);
@@ -801,9 +849,37 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
     // Otherwise, intentionally ignore random kitchen banter / noise!
     console.log("Ignored non-command speech:", rawTranscript);
-  }, [steps.length, currentStep, speakCurrentStep, speakIngredients, stopSpeaking, handleExitCooking, askCookingAssistant, isSpeakingRef, triggerPanicRescue]);
+  }, [steps.length, currentStep, hasStarted, speakCurrentStep, speakIngredients, stopSpeaking, handleExitCooking, askCookingAssistant, isSpeakingRef, triggerPanicRescue]);
 
-  // Start continuous hands-free voice recognition
+  const startHandsFreeRef = useRef<() => void>(() => {});
+
+  // Start cooking at chosen step (either resumed step or step 0)
+  const startCookingAtStep = useCallback((stepIdx: number) => {
+    setHasStarted(true);
+    setShowResumeModal(false);
+    updateStep(stepIdx);
+    setActiveSection('steps');
+
+    if (steps.length > 0 && autoSpeak) {
+      const isResuming = stepIdx > 0;
+      const intro = isResuming
+        ? `Welcome back to ${currentRecipe.title}. Resuming at step ${stepIdx + 1}. Cookware set to ${cookware.replace('_', ' ')}.`
+        : `Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}.`;
+
+      speak(
+        intro,
+        () => setVoiceFeedback(`Starting at Step ${stepIdx + 1}...`),
+        () => {
+          if (!isClosedRef.current) {
+            speakCurrentStep(stepIdx);
+          }
+        },
+        'en-US-AvaNeural',
+        voiceSpeed
+      );
+    }
+    startHandsFreeRef.current();
+  }, [currentRecipe.title, cookware, autoSpeak, speak, voiceSpeed, speakCurrentStep, steps.length]);
   const startHandsFree = useCallback(async () => {
     if (isClosedRef.current) return;
 
@@ -935,6 +1011,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setVoiceFeedback('Hands-free mode paused.');
   }, [stopSpeaking]);
 
+  startHandsFreeRef.current = startHandsFree;
+
   const toggleHandsFree = () => {
     if (isListening) {
       stopHandsFree();
@@ -943,34 +1021,15 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
   };
 
-  // Initial greeting, hands-free start, and KEEP SCREEN AWAKE
+  // Keep screen awake while in cooking mode
   useEffect(() => {
     isClosedRef.current = false;
-
-    // Keep screen awake while in cooking mode
     requestScreenKeepAwake();
-
-    if (steps.length > 0 && autoSpeak) {
-      // First deliver a brief natural greeting, then immediately start reading Step 1 with synchronized word highlighting!
-      const intro = `Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}.`;
-      speak(
-        intro,
-        () => setVoiceFeedback('Starting cooking mode...'),
-        () => {
-          if (!isClosedRef.current) {
-            speakCurrentStep(currentStep);
-          }
-        },
-        'en-US-AvaNeural',
-        voiceSpeed
-      );
-    }
-    startHandsFree();
 
     return () => {
       terminateAll();
     };
-  }, []);
+  }, [terminateAll]);
 
   const currentStepText = steps[currentStep] || "Enjoy your meal!";
   const activeGuidance = getCookwareGuidance(currentStepText, currentStep);
@@ -1418,6 +1477,93 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           </div>
         )}
 
+        {/* 🌟 RESUME VS START OVER MODAL (Prompt when entering recipe with saved progress) */}
+        {showResumeModal && savedStep > 0 && !hasStarted && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div
+              className={`w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl border text-center space-y-5 animate-scaleUp transition-colors ${
+                theme === 'light'
+                  ? 'bg-[#FFFDF9] border-amber-300 text-[#2C2117]'
+                  : 'bg-[#221A15] border-[#4A382A] text-[#F5EEDB]'
+              }`}
+            >
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center border border-amber-500/30 shadow-inner">
+                <CookieLogo className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-xl sm:text-2xl font-serif font-black">
+                  Welcome Back!
+                </h3>
+                <p className={`text-xs sm:text-sm ${theme === 'light' ? 'text-[#7D6B58]' : 'text-stone-300'}`}>
+                  You were on <strong className="text-amber-600 dark:text-amber-400 font-bold">Step {savedStep + 1}</strong> of {steps.length} for <br className="hidden sm:inline" />"{currentRecipe.title}".
+                </p>
+                <p className={`text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'}`}>
+                  Would you like to continue or start over?
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => startCookingAtStep(savedStep)}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 transition cursor-pointer active:scale-95"
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Continue at Step {savedStep + 1}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => startCookingAtStep(0)}
+                  className={`w-full py-3 px-5 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer active:scale-95 ${
+                    theme === 'light'
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-300'
+                      : 'bg-[#2E241E] hover:bg-[#3D2E24] text-stone-300 border-[#473627]'
+                  }`}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Start Over from Beginning (Step 1)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🌟 WELCOME & BEGIN BANNER (When cooking hasn't started yet) */}
+        {!hasStarted && !showResumeModal && (
+          <div
+            className={`mb-6 border-2 rounded-3xl p-5 sm:p-7 shadow-xl animate-fadeIn shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors ${
+              theme === 'light'
+                ? 'bg-gradient-to-r from-amber-50 via-white to-amber-50/60 border-amber-300 text-amber-950 shadow-amber-900/5'
+                : 'bg-gradient-to-r from-[#2A1E16] via-[#241A13] to-[#1E150F] border-amber-500/50 text-stone-100 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center gap-4 text-center sm:text-left">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-inner">
+                <ChefHat className="w-7 h-7 sm:w-8 sm:h-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-serif font-bold">
+                  Ready to cook "{currentRecipe.title}"?
+                </h3>
+                <p className={`text-xs ${theme === 'light' ? 'text-[#7D6B58]' : 'text-stone-300'}`}>
+                  Get your ingredients prepped and cookware ready. Tap <strong>Begin</strong> or say <strong>"Begin"</strong> when you're ready!
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => startCookingAtStep(0)}
+              className="px-6 sm:px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm sm:text-base flex items-center gap-2 shadow-xl shadow-amber-600/30 transition cursor-pointer active:scale-95 shrink-0"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>Begin Cooking</span>
+            </button>
+          </div>
+        )}
+
         {activeSection === 'steps' ? (
           <div className="space-y-6 my-auto">
             {/* Step Progress & Indicators */}
@@ -1655,7 +1801,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         <button
           type="button"
           onClick={() => {
-            if (activeSection === 'ingredients') {
+            if (!hasStarted) {
+              startCookingAtStep(currentStep);
+            } else if (activeSection === 'ingredients') {
               setActiveSection('steps');
               updateStep(0);
               speakCurrentStep(0);
@@ -1671,7 +1819,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           }}
           className="px-4 sm:px-8 md:px-10 py-3 sm:py-4 landscape:py-1.5 landscape:px-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs sm:text-sm md:text-base font-black flex items-center gap-1.5 sm:gap-2 transition cursor-pointer shadow-xl shadow-amber-950/20 shrink-0 active:scale-95"
         >
-          <span>{currentStep === steps.length - 1 ? 'Done' : 'Next Step'}</span>
+          <span>{!hasStarted ? 'Begin' : currentStep === steps.length - 1 ? 'Done' : 'Next Step'}</span>
           <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </footer>
