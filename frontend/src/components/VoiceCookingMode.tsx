@@ -151,6 +151,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
   const isAwaitingQuestionRef = useRef(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
+  const hotwordDebounceTimerRef = useRef<any>(null);
+  const restartTimeoutRef = useRef<any>(null);
+  const watchdogTimerRef = useRef<any>(null);
 
   // Multi-turn Conversational Memory for cooking session (e.g. asking substitute then saying "yes add that")
   const [conversationHistory, setConversationHistory] = useState<VoiceConversationTurn[]>([]);
@@ -264,6 +267,23 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     isProcessingCommandRef.current = false;
     setIsProcessingCommand(false);
     setIsListening(false);
+
+    if (hotwordDebounceTimerRef.current) {
+      clearTimeout(hotwordDebounceTimerRef.current);
+      hotwordDebounceTimerRef.current = null;
+    }
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+    if (awaitingQuestionTimerRef.current) {
+      clearTimeout(awaitingQuestionTimerRef.current);
+      awaitingQuestionTimerRef.current = null;
+    }
 
     releaseScreenKeepAwake();
 
@@ -411,6 +431,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   }, [currentRecipe.title, cookware, steps, currentStep, stopSpeaking, speak]);
 
   // Query AI for cooking advice, ingredient substitutes, timer questions, or general recipe questions
+  // Query AI for cooking advice, ingredient substitutes, timer questions, or general recipe questions
   const askCookingAssistant = useCallback(async (query: string) => {
     if (isThinkingRef.current || isClosedRef.current) return;
     isThinkingRef.current = true;
@@ -419,6 +440,15 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setIsProcessingCommand(true);
     setVoiceFeedback(`Chef is thinking...`);
 
+    // Safety watchdog: reset after 10s if network hangs so cook is never stuck
+    if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+    watchdogTimerRef.current = setTimeout(() => {
+      isThinkingRef.current = false;
+      setIsThinking(false);
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+    }, 10000);
+
     // Stop current reading immediately so user hears the chef's answer clearly
     stopSpeaking();
 
@@ -426,10 +456,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       const currentStepText = steps[currentStep] || "";
       const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`);
 
-      // Record user turn in conversation history
-      const currentHistory = [...conversationHistoryRef.current, { role: 'user' as const, content: query }];
-      conversationHistoryRef.current = currentHistory;
-      setConversationHistory(currentHistory);
+      // Pass previous turns of history (without duplicate current query)
+      const priorHistory = conversationHistoryRef.current.slice(-8);
 
       // Call dedicated ultra-fast voice endpoint with multi-turn history
       const res = await askVoiceAssistant({
@@ -440,20 +468,21 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         cookware,
         ingredients: ingList,
         instructions: steps,
-        history: currentHistory.slice(-8),
+        history: priorHistory,
       });
 
       if (isClosedRef.current) return;
 
       const answer = res.reply.replace(/[*#_~`]/g, '').trim();
       
-      // Record assistant turn in conversation history
-      const updatedHistory = [...conversationHistoryRef.current, { role: 'assistant' as const, content: answer }];
+      // Record user turn and assistant turn in conversation history
+      const updatedHistory = [
+        ...conversationHistoryRef.current,
+        { role: 'user' as const, content: query },
+        { role: 'assistant' as const, content: answer }
+      ];
       conversationHistoryRef.current = updatedHistory;
       setConversationHistory(updatedHistory);
-
-      setAiResponse(answer);
-      setVoiceFeedback(`Chef: "${answer.slice(0, 30)}..."`);
 
       // 🌟 AUTOMATIC ON-THE-FLY INGREDIENT & RECIPE ADAPTATION
       let spokenAnswer = answer;
@@ -476,6 +505,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           spokenAnswer = `Updated your recipe cards with ${namesStr}. ${answer}`;
         }
 
+        let adaptedRecipeRef: Recipe | null = null;
+
         setCurrentRecipe(prev => {
           let updatedIngredients = [...(prev.ingredients || [])];
           let updatedInstructions = [...(prev.instructions || [])];
@@ -485,6 +516,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             if (!new_name) continue;
 
             const oldClean = (old_name || '').toLowerCase().trim();
+            const safeAmount = typeof new_amount === 'number' && !isNaN(new_amount) && new_amount > 0 ? new_amount : 1;
             let matched = false;
 
             // 1. Try exact or substring match
@@ -499,7 +531,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 return {
                   ...ing,
                   name: new_name,
-                  amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
+                  amount: typeof new_amount === 'number' && !isNaN(new_amount) ? new_amount : ing.amount,
                   unit: new_unit || ing.unit,
                   notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
                 };
@@ -517,7 +549,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                   return {
                     ...ing,
                     name: new_name,
-                    amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
+                    amount: typeof new_amount === 'number' && !isNaN(new_amount) ? new_amount : ing.amount,
                     unit: new_unit || ing.unit,
                     notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
                   };
@@ -532,7 +564,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               if (!alreadyExists) {
                 updatedIngredients.push({
                   name: new_name,
-                  amount: new_amount !== null && new_amount !== undefined ? new_amount : 1,
+                  amount: safeAmount,
                   unit: new_unit || 'tsp',
                   category: 'Pantry',
                   notes: notes || undefined
@@ -560,37 +592,38 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             instructions: updatedInstructions,
           };
 
-          // Propagate adapted recipe safely to parent so whole meal plan updates persistently
-          if (onRecipeUpdated) {
+          adaptedRecipeRef = adaptedRecipe;
+          return adaptedRecipe;
+        });
+
+        // Safely propagate adapted recipe to parent decoupled from setState cycle
+        if (onRecipeUpdated && adaptedRecipeRef) {
+          const toSave = adaptedRecipeRef;
+          setTimeout(() => {
             try {
-              onRecipeUpdated(adaptedRecipe);
+              onRecipeUpdated(toSave);
             } catch (e) {
               console.warn("Failed to propagate updated recipe:", e);
             }
-          }
-
-          return adaptedRecipe;
-        });
+          }, 0);
+        }
       }
 
       setAiResponse(spokenAnswer);
       setVoiceFeedback(`Chef: "${spokenAnswer.slice(0, 32)}..."`);
 
+      // Unblock processing immediately so cook can interrupt or navigate during answer speech
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+
       if (autoSpeak) {
         speak(
           spokenAnswer,
           undefined,
-          () => {
-            // Unblock processing once answer finishes speaking
-            isProcessingCommandRef.current = false;
-            setIsProcessingCommand(false);
-          },
+          undefined,
           'en-US-AvaNeural',
           voiceSpeed
         );
-      } else {
-        isProcessingCommandRef.current = false;
-        setIsProcessingCommand(false);
       }
     } catch (err) {
       if (isClosedRef.current) return;
@@ -604,47 +637,52 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         const answer = res.reply.replace(/[*#_~`]/g, '').trim();
         setAiResponse(answer);
         setVoiceFeedback(`Chef answered`);
+        isProcessingCommandRef.current = false;
+        setIsProcessingCommand(false);
         if (autoSpeak) {
-          speak(
-            answer,
-            undefined,
-            () => {
-              isProcessingCommandRef.current = false;
-              setIsProcessingCommand(false);
-            },
-            'en-US-AvaNeural',
-            voiceSpeed
-          );
-        } else {
-          isProcessingCommandRef.current = false;
-          setIsProcessingCommand(false);
+          speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
         }
       } catch (fallbackErr) {
         if (isClosedRef.current) return;
         const fallback = "I couldn't reach the AI assistant right now. You can ask again in a moment.";
         setAiResponse(fallback);
         setVoiceFeedback('Assistant unavailable');
+        isProcessingCommandRef.current = false;
+        setIsProcessingCommand(false);
         if (autoSpeak) {
-          speak(
-            fallback,
-            undefined,
-            () => {
-              isProcessingCommandRef.current = false;
-              setIsProcessingCommand(false);
-            },
-            'en-US-AvaNeural',
-            voiceSpeed
-          );
-        } else {
-          isProcessingCommandRef.current = false;
-          setIsProcessingCommand(false);
+          speak(fallback, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
         }
       }
     } finally {
+      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
       isThinkingRef.current = false;
       setIsThinking(false);
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
     }
   }, [currentRecipe.title, currentStep, steps, ingredients, autoSpeak, speak, cookware, stopSpeaking, voiceSpeed, onRecipeUpdated]);
+
+  const startHandsFreeRef = useRef<() => void>(() => {});
+
+  // Start cooking at chosen step (either resumed step or step 0)
+  const startCookingAtStep = useCallback((stepIdx: number) => {
+    setHasStarted(true);
+    setShowResumeModal(false);
+    updateStep(stepIdx);
+    setActiveSection('steps');
+
+    if (steps.length > 0 && autoSpeak) {
+      // Speak current step directly to eliminate introductory delay and chained audio latency
+      speakCurrentStep(stepIdx);
+    }
+
+    // Delay hands-free mic startup briefly (~350ms) so audio hardware initializes cleanly without buffer contention
+    setTimeout(() => {
+      if (!isClosedRef.current) {
+        startHandsFreeRef.current();
+      }
+    }, 350);
+  }, [autoSpeak, speakCurrentStep, steps.length, updateStep]);
 
   // Handle Selective Voice Commands & Hotword-triggered AI Questions
   const handleVoiceCommand = useCallback((rawTranscript: string) => {
@@ -653,49 +691,25 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     const text = rawTranscript.toLowerCase().trim();
     if (!text || text.length < 2) return;
 
+    // Check if user is saying wake word or direct assistant invocation
+    const isDirectedAtChef = /^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)\b/i.test(text);
+    const isWakeWordAlone = /^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)[.!?\s]*$/i.test(text);
+
     // Check if the utterance is an intentional command that should interrupt speaking
     const isInterruptIntent =
       isAwaitingQuestionRef.current ||
-      text === 'pause' ||
-      text === 'stop' ||
-      text === 'quiet' ||
-      text === 'silence' ||
-      text.includes('pause') ||
-      text.includes('stop speaking') ||
-      text === 'next' ||
-      text === 'next step' ||
-      text === 'continue' ||
-      text === 'back' ||
-      text === 'previous' ||
-      text === 'previous step' ||
-      text === 'repeat' ||
-      text === 'repeat step' ||
-      text === 'reread' ||
-      text.includes('reread') ||
-      text.includes('chef') ||
-      text.includes('tastecraft') ||
-      text.startsWith('what if') ||
-      text.startsWith('can i substitute') ||
-      text.startsWith('what can i use') ||
-      text.startsWith('can i replace') ||
-      text.startsWith('replace ') ||
-      text.startsWith('substitute ') ||
-      text.startsWith('swap ') ||
-      text.includes('replace') ||
-      text.includes('substitute') ||
-      text.startsWith('yes add') ||
-      text.startsWith('yes replace') ||
-      text.startsWith('yes use') ||
-      text.startsWith('add ') ||
-      text.startsWith('how long') ||
-      text.startsWith('how do i know') ||
+      isDirectedAtChef ||
+      text.includes('panic') ||
       text.includes('smoke') ||
-      text.includes('smoking') ||
-      text.includes('burning') ||
       text.includes('burn') ||
       text.includes('sticking') ||
-      text.includes('stuck') ||
-      text.includes('panic');
+      text.includes('pause') ||
+      text.includes('stop') ||
+      text.includes('next') ||
+      text.includes('back') ||
+      text.includes('previous') ||
+      text.includes('repeat') ||
+      text.includes('reread');
 
     // If app is speaking and the transcript is NOT a user command/question, ignore as echo!
     if (isSpeakingRef.current && !isInterruptIntent) {
@@ -703,14 +717,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // If awaiting question and user started speaking their query, cut off any ongoing prompt ("I'm listening...") immediately!
+    // If awaiting question and user started speaking their query, cut off any ongoing prompt immediately!
     if (isAwaitingQuestionRef.current && isSpeakingRef.current) {
       stopSpeaking();
     }
 
-    // Capacity & Flow Guard: If Chef is already thinking, formulating advice, or doing an AI query,
-    // only allow immediate safety/interruption commands ('stop', 'pause', 'panic', 'exit').
-    // Reject other speech so the app never gets overwhelmed or backlogged!
+    // Capacity & Flow Guard: If Chef is already thinking, only allow emergency stops
     if (isProcessingCommandRef.current || isThinkingRef.current) {
       const isUrgentOverride =
         text === 'stop' ||
@@ -728,6 +740,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
 
     setLastHeard(rawTranscript);
+
+    // Cancel any pending hotword debounce timer if a new command arrived
+    if (hotwordDebounceTimerRef.current) {
+      clearTimeout(hotwordDebounceTimerRef.current);
+      hotwordDebounceTimerRef.current = null;
+    }
 
     // 0. MID-COOK PANIC RESCUE DETECTION (Always active for kitchen safety)
     if (
@@ -771,15 +789,33 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 1. Next step / Continue
+    // 1. Next step / Next item / Continue
     if (
       text === 'next' ||
       text === 'next step' ||
+      text === 'next item' ||
+      text === 'go to next step' ||
+      text === 'go to next item' ||
+      text === "what's next" ||
+      text === 'whats next' ||
+      text === 'what is next' ||
+      text === "what's the next step" ||
+      text === "whats the next step" ||
+      text === 'what is the next step' ||
       text === 'continue' ||
       text === 'forward' ||
+      text === 'advance' ||
+      text === 'move on' ||
       text.endsWith('next step') ||
+      text.endsWith('next item') ||
       text.startsWith('next step')
     ) {
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+      isThinkingRef.current = false;
+      setIsThinking(false);
+      stopSpeaking();
+
       const curSteps = stepsRef.current || [];
       const cur = currentStepRef.current;
       if (!hasStarted) {
@@ -788,21 +824,39 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       }
       setActiveSection('steps');
       if (curSteps.length > 0) {
-        const next = Math.min(curSteps.length - 1, cur + 1);
-        updateStep(next);
-        speakCurrentStep(next);
+        if (cur < curSteps.length - 1) {
+          const next = cur + 1;
+          updateStep(next);
+          speakCurrentStep(next);
+        } else {
+          setVoiceFeedback('All steps complete! Say "exit" to finish.');
+          speak("You've finished all the steps! Enjoy your meal.", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+        }
       }
       return;
     }
 
-    // 2. Previous step / Back
+    // 2. Previous step / Back / Previous item
     if (
       text === 'back' ||
+      text === 'go back' ||
       text === 'previous' ||
       text === 'previous step' ||
+      text === 'previous item' ||
+      text === 'go to previous step' ||
+      text === 'go to previous item' ||
       text === 'last step' ||
-      text.endsWith('previous step')
+      text === 'last item' ||
+      text === 'step back' ||
+      text.endsWith('previous step') ||
+      text.endsWith('previous item')
     ) {
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+      isThinkingRef.current = false;
+      setIsThinking(false);
+      stopSpeaking();
+
       const cur = currentStepRef.current;
       setActiveSection('steps');
       const back = Math.max(0, cur - 1);
@@ -815,13 +869,21 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (
       text === 'repeat' ||
       text === 'repeat step' ||
+      text === 'repeat item' ||
       text === 'say again' ||
       text === 'read again' ||
       text === 'reread' ||
+      text === 're-read' ||
       text.includes('reread') ||
       text.includes('repeat step') ||
       text === 'what step'
     ) {
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+      isThinkingRef.current = false;
+      setIsThinking(false);
+      stopSpeaking();
+
       setActiveSection('steps');
       speakCurrentStep(currentStepRef.current);
       return;
@@ -832,8 +894,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'ingredients' ||
       text === 'show ingredients' ||
       text === 'read ingredients' ||
-      text === 'what do i need'
+      text === 'what do i need' ||
+      text === 'what are the ingredients' ||
+      text === 'list ingredients'
     ) {
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+      isThinkingRef.current = false;
+      setIsThinking(false);
+      stopSpeaking();
+
       speakIngredients();
       return;
     }
@@ -844,6 +914,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       const curSteps = stepsRef.current || [];
       const targetStep = parseInt(stepMatch[1], 10) - 1;
       if (targetStep >= 0 && targetStep < curSteps.length) {
+        isProcessingCommandRef.current = false;
+        setIsProcessingCommand(false);
+        isThinkingRef.current = false;
+        setIsThinking(false);
+        stopSpeaking();
+
         setActiveSection('steps');
         updateStep(targetStep);
         speakCurrentStep(targetStep);
@@ -854,10 +930,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     // 6. Stop speaking / pause
     if (
       text === 'pause' ||
+      text === 'pause reading' ||
+      text === 'pause cooking' ||
       text === 'stop' ||
+      text === 'stop speaking' ||
       text === 'quiet' ||
       text === 'silence' ||
-      text.includes('pause') ||
+      text === 'hold on' ||
+      text === 'wait' ||
       text.includes('stop speaking')
     ) {
       pauseSpeaking();
@@ -870,8 +950,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
     if (
       text === 'resume' ||
+      text === 'resume reading' ||
       text === 'continue reading' ||
-      text === 'play'
+      text === 'play' ||
+      text === 'unpause' ||
+      text === 'keep going'
     ) {
       resumeSpeaking();
       setIsPaused(false);
@@ -885,6 +968,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'close' ||
       text === 'quit' ||
       text === 'done cooking' ||
+      text === 'done' ||
+      text === 'finish' ||
       text.includes('exit cooking')
     ) {
       handleExitCooking();
@@ -892,19 +977,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
 
     // 8. HOTWORD & TARGETED COOKING QUESTION DETECTION FOR AI CULINARY COACH:
-    // To prevent ambient living room speech from accidentally triggering the chef,
-    // we require either:
-    // a) An explicit wake word ("Chef", "Hey Chef", "TasteCraft", "Hey TasteCraft")
-    // b) An active follow-up window after wake-word was primed (isAwaitingQuestion)
-    // c) An unmistakable direct culinary inquiry starting specifically with cooking substitution triggers
-    const hasHotword =
-      text.includes('hey chef') ||
-      text.includes('chef') ||
-      text.includes('tastecraft') ||
-      text.includes('taste craft') ||
-      text.includes('hey tastecraft') ||
-      text.includes('hey taste craft');
-
     // Narrow, unambiguous culinary question openers (cannot be confused with casual banter)
     const isExplicitCulinaryQuestion =
       text.startsWith("i don't have") ||
@@ -917,35 +989,43 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith("what can i substitute") ||
       text.startsWith("what can i use instead of") ||
       text.startsWith("can i replace") ||
+      text.startsWith("can we replace") ||
       text.startsWith("replace ") ||
       text.startsWith("substitute ") ||
       text.startsWith("swap ") ||
+      text.includes("substitute") ||
+      text.includes("replace with") ||
       text.startsWith("yes add") ||
       text.startsWith("yes replace") ||
       text.startsWith("yes use") ||
-      text.startsWith("use ") ||
+      text.startsWith("adjust the recipe") ||
+      text.startsWith("add your suggestion") ||
+      text.startsWith("add the suggestion") ||
       text.startsWith("add ") ||
       text.startsWith("can we add") ||
       text.startsWith("can i add");
 
-    if (hasHotword || isAwaitingQuestionRef.current || isExplicitCulinaryQuestion) {
+    if (isDirectedAtChef || isAwaitingQuestionRef.current || isExplicitCulinaryQuestion) {
       // Clean hotword from query
       let query = rawTranscript
-        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef)\b/gi, '')
+        .replace(/^(?:hey\s+|ok\s+|hello\s+)?(?:chef|tastecraft|taste\s+craft)[,\s:]*/i, '')
         .trim();
 
-      if (!query || query.length < 3) {
-        // Just the wake word spoken! Activate listening mode and prompt user
-        isAwaitingQuestionRef.current = true;
-        setIsAwaitingQuestion(true);
-        setVoiceFeedback('Listening for your question...');
-        speak("I'm listening, go ahead!", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
-        if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
-        awaitingQuestionTimerRef.current = setTimeout(() => {
-          isAwaitingQuestionRef.current = false;
-          setIsAwaitingQuestion(false);
-          setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
-        }, 8000);
+      if (isWakeWordAlone || (!query || query.length < 2)) {
+        // Just the wake word spoken alone! Debounce by 450ms in case the rest of the question is incoming
+        hotwordDebounceTimerRef.current = setTimeout(() => {
+          if (isClosedRef.current) return;
+          isAwaitingQuestionRef.current = true;
+          setIsAwaitingQuestion(true);
+          setVoiceFeedback('Listening for your question...');
+          speak("I'm listening, go ahead!", undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+          if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
+          awaitingQuestionTimerRef.current = setTimeout(() => {
+            isAwaitingQuestionRef.current = false;
+            setIsAwaitingQuestion(false);
+            setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
+          }, 8000);
+        }, 450);
         return;
       }
 
@@ -960,29 +1040,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
     // Otherwise, intentionally ignore random kitchen banter / noise!
     console.log("Ignored non-command speech:", rawTranscript);
-  }, [steps.length, currentStep, hasStarted, speakCurrentStep, speakIngredients, stopSpeaking, handleExitCooking, askCookingAssistant, isSpeakingRef, triggerPanicRescue]);
-
-  const startHandsFreeRef = useRef<() => void>(() => {});
-
-  // Start cooking at chosen step (either resumed step or step 0)
-  const startCookingAtStep = useCallback((stepIdx: number) => {
-    setHasStarted(true);
-    setShowResumeModal(false);
-    updateStep(stepIdx);
-    setActiveSection('steps');
-
-    if (steps.length > 0 && autoSpeak) {
-      // Speak current step directly to eliminate introductory delay and chained audio latency
-      speakCurrentStep(stepIdx);
-    }
-
-    // Delay hands-free mic startup briefly (~350ms) so audio hardware initializes cleanly without buffer contention
-    setTimeout(() => {
-      if (!isClosedRef.current) {
-        startHandsFreeRef.current();
-      }
-    }, 350);
-  }, [autoSpeak, speakCurrentStep, steps.length]);
+  }, [steps.length, currentStep, hasStarted, speakCurrentStep, speakIngredients, stopSpeaking, handleExitCooking, askCookingAssistant, isSpeakingRef, triggerPanicRescue, pauseSpeaking, resumeSpeaking, startCookingAtStep, updateStep, voiceSpeed, speak]);
   const startHandsFree = useCallback(async () => {
     if (isClosedRef.current) return;
 
@@ -1064,22 +1122,29 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       };
 
       rec.onerror = (event: any) => {
-        console.warn("Cooking mode speech error:", event.error);
         if (event.error === 'not-allowed') {
           setVoiceFeedback('Microphone permission blocked. Tap the mic button to grant.');
           setIsListening(false);
           isListeningRef.current = false;
+        } else if (event.error === 'no-speech' || event.error === 'aborted') {
+          // Normal ambient quietness or transient abort; onend restarts smoothly with backoff
+        } else {
+          console.warn("Cooking mode speech error:", event.error);
         }
       };
 
       rec.onend = () => {
         if (isListeningRef.current && !isClosedRef.current) {
-          try {
-            rec.start();
-          } catch {
-            setIsListening(false);
-            isListeningRef.current = false;
-          }
+          if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+          restartTimeoutRef.current = setTimeout(() => {
+            if (isListeningRef.current && !isClosedRef.current) {
+              try {
+                rec.start();
+              } catch (e) {
+                // If already active or browser resetting, smoothly recover without crash
+              }
+            }
+          }, 300);
         } else {
           setIsListening(false);
         }
@@ -1097,6 +1162,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const stopHandsFree = useCallback(() => {
     isListeningRef.current = false;
     setIsListening(false);
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
+    if (hotwordDebounceTimerRef.current) {
+      clearTimeout(hotwordDebounceTimerRef.current);
+      hotwordDebounceTimerRef.current = null;
+    }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -1134,7 +1207,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     };
   }, [terminateAll]);
 
-  const currentStepText = steps[currentStep] || "Enjoy your meal!";
+  const rawStep = steps[currentStep];
+  const currentStepText = typeof rawStep === 'string' ? rawStep : (rawStep && typeof (rawStep as any).text === 'string' ? (rawStep as any).text : (rawStep ? String(rawStep) : "Enjoy your meal!"));
   const activeGuidance = getCookwareGuidance(currentStepText, currentStep);
 
   // Split step text into words for word-by-word reading highlighting

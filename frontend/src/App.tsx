@@ -163,10 +163,14 @@ export const App: React.FC = () => {
   };
 
   const handleSaveManualMeal = async (day: string, recipe: Recipe) => {
-    const updated = await updateSlot(day, recipe);
-    setMealPlan(updated);
-    const updatedG = await fetchGroceryList();
-    setGroceryList(updatedG);
+    try {
+      const updated = await updateSlot(day, recipe);
+      setMealPlan(updated);
+      const updatedG = await fetchGroceryList();
+      setGroceryList(updatedG);
+    } catch (err) {
+      console.warn("Failed to persist updated meal slot:", err);
+    }
   };
 
   const handleResetPlan = async () => {
