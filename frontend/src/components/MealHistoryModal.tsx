@@ -87,40 +87,40 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-[#181310] text-[#f5eedf] rounded-3xl shadow-2xl border border-[#34271D] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="p-4 sm:p-5 border-b border-[#34271D] flex items-center justify-between bg-[#211A15]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 text-emerald-700 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Meal Plan Log & Favorites</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-base font-bold text-[#f5eedf]">Meal Plan Log & Favorites</h2>
+              <p className="text-xs text-[#a89988]">
                 Browse up to last 50 planned meals or reuse your pinned favorites
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition"
+            className="p-2 text-[#8c7b6d] hover:text-[#f5eedf] rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Target Day Selector Bar */}
-        <div className="px-4 py-3 bg-emerald-50/60 border-b border-emerald-100 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-4 py-3 bg-[#261E17] border-b border-[#34271D] flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-emerald-950">Add selected meal to:</span>
+            <span className="text-xs font-semibold text-[#f5eedf]">Add selected meal to:</span>
             <select
               value={selectedDay}
               onChange={(e) => setSelectedDay(e.target.value)}
-              className="text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 focus:outline-hidden"
+              className="text-xs font-bold text-amber-300 bg-[#140F0C] border border-[#3B2C21] rounded-lg px-2.5 py-1.5 focus:border-amber-500 focus:outline-hidden"
             >
               {daysOfWeek.map(d => (
-                <option key={d} value={d}>{d} Dinner</option>
+                <option key={d} value={d} className="bg-[#181310] text-[#f5eedf]">{d} Dinner</option>
               ))}
             </select>
           </div>
@@ -130,26 +130,26 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
               onClick={() => setOnlyPinned(!onlyPinned)}
               className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
                 onlyPinned
-                  ? 'bg-amber-100 text-amber-900 border-amber-300'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
+                  : 'bg-[#140F0C] text-[#a89988] border-[#3B2C21] hover:text-[#f5eedf]'
               }`}
             >
-              <Star className={`w-3.5 h-3.5 ${onlyPinned ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+              <Star className={`w-3.5 h-3.5 ${onlyPinned ? 'fill-amber-400 text-amber-400' : 'text-[#8c7b6d]'}`} />
               <span>Pinned Only</span>
             </button>
           </div>
         </div>
 
         {/* Search */}
-        <div className="p-3 sm:px-5 border-b border-slate-100 bg-white">
+        <div className="p-3 sm:px-5 border-b border-[#34271D] bg-[#1a1410]">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-[#8c7b6d] absolute left-3.5 top-3" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search past meals by title, tag (e.g. salmon, sheet-pan, pasta)..."
-              className="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-emerald-500 focus:outline-hidden transition shadow-inner"
+              className="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl bg-[#140F0C] text-[#f5eedf] placeholder-[#8c7b6d] border border-[#3B2C21] focus:border-amber-500 focus:outline-hidden transition shadow-inner"
             />
           </div>
         </div>
@@ -157,14 +157,14 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
         {/* List of historical meals */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
           {loading ? (
-            <div className="py-12 text-center text-slate-400 text-xs">
+            <div className="py-12 text-center text-[#8c7b6d] text-xs">
               Loading meal history...
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center space-y-2">
-              <ChefHat className="w-10 h-10 text-slate-300 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">No meals found in history</p>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <ChefHat className="w-10 h-10 text-[#5c4a3d] mx-auto" />
+              <p className="text-sm font-semibold text-[#d6c7b2]">No meals found in history</p>
+              <p className="text-xs text-[#8c7b6d] max-w-sm mx-auto">
                 Any meals you set in your weekly plan will automatically be saved here so you can easily reuse them later!
               </p>
             </div>
@@ -177,41 +177,41 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
               return (
                 <div
                   key={item.id}
-                  className="bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-xs hover:shadow-md p-4 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                  className="bg-[#211A15] rounded-2xl border border-[#34271D] hover:border-amber-500/40 p-4 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 group shadow-xs"
                 >
                   <div
                     onClick={() => onViewRecipe(recipe)}
                     className="flex-1 cursor-pointer space-y-1.5"
                   >
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition">
+                      <h4 className="text-sm font-bold text-[#f5eedf] group-hover:text-amber-300 transition">
                         {recipe.title}
                       </h4>
                       {item.pinned && (
-                        <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                          <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
                           <span>Pinned</span>
                         </span>
                       )}
                     </div>
 
                     {recipe.description && (
-                      <p className="text-xs text-slate-500 line-clamp-1">
+                      <p className="text-xs text-[#a89988] line-clamp-1">
                         {recipe.description}
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
+                    <div className="flex items-center gap-2 text-[11px] text-[#8c7b6d] flex-wrap">
                       {totalTime > 0 && (
-                        <span className="flex items-center gap-1 font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          <Clock className="w-3 h-3 text-slate-400" />
+                        <span className="flex items-center gap-1 font-medium text-[#c8bba9] bg-[#140F0C] border border-[#34271D] px-1.5 py-0.5 rounded">
+                          <Clock className="w-3 h-3 text-amber-400" />
                           <span>{totalTime}m</span>
                         </span>
                       )}
                       <span>{recipe.ingredients?.length || 0} ingredients</span>
                       <span>• Planned {item.times_planned}x</span>
                       {recipe.tags && recipe.tags.slice(0, 2).map((t, idx) => (
-                        <span key={idx} className="bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded">
+                        <span key={idx} className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.2 rounded">
                           #{t}
                         </span>
                       ))}
@@ -225,8 +225,8 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
                       onClick={(e) => handleTogglePin(e, item.id)}
                       className={`p-2 rounded-xl transition cursor-pointer ${
                         item.pinned
-                          ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                          : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'
+                          ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                          : 'text-[#8c7b6d] hover:text-amber-400 hover:bg-[#2C211A]'
                       }`}
                       title={item.pinned ? "Unpin recipe" : "Pin permanently so it never rolls off"}
                     >
@@ -236,7 +236,7 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
                     <button
                       type="button"
                       onClick={(e) => handleDelete(e, item.id)}
-                      className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                      className="p-2 text-[#8c7b6d] hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition cursor-pointer"
                       title="Delete from log"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -246,7 +246,7 @@ export const MealHistoryModal: React.FC<MealHistoryModalProps> = ({
                       type="button"
                       onClick={() => handleApply(recipe)}
                       disabled={isApplying}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       {isApplying ? (
                         <span>Applying...</span>

@@ -28,7 +28,13 @@ body {
 }
 
 .pt-safe {
-  padding-top: max(env(safe-area-inset-top, 0px), 16px);
+  padding-top: max(env(safe-area-inset-top, 0px), 36px);
+}
+
+@media (orientation: landscape) and (max-height: 550px) {
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top, 0px), 12px);
+  }
 }
 
 .pb-safe {
@@ -36,11 +42,11 @@ body {
 }
 
 .pl-safe {
-  padding-left: env(safe-area-inset-left, 0px);
+  padding-left: max(env(safe-area-inset-left, 0px), 8px);
 }
 
 .pr-safe {
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-right: max(env(safe-area-inset-right, 0px), 8px);
 }
 
 /* Warm ambient scrollbar */

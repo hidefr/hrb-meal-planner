@@ -262,15 +262,12 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0d0a08] flex flex-col antialiased text-[#f5eedf]">
       {/* Mobile Top App Bar (Ensures clock, battery, Wi-Fi notch have safe breathing room) */}
-      <header className="md:hidden sticky top-0 z-30 bg-[#140f0c]/95 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-2.5 shadow-md flex items-center justify-between">
+      <header className="md:hidden sticky top-0 z-30 bg-[#140f0c]/95 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-2.5 landscape:py-1.5 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-white shadow-sm border border-amber-500/30">
             <ChefHat className="w-4 h-4 text-amber-200" />
           </div>
           <span className="font-serif font-bold text-base tracking-wide text-[#f5eedf]">TasteCraft</span>
-          <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            Pann AI
-          </span>
         </div>
         <button
           onClick={() => setIsSettingsOpen(true)}
@@ -292,9 +289,6 @@ export const App: React.FC = () => {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-serif font-bold text-lg tracking-wide text-[#f5eedf]">TasteCraft</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Pann AI
-                </span>
               </div>
             </div>
           </div>

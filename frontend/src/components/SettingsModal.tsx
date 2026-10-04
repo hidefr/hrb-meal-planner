@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   X, Plus, Trash2, Check, Settings, Store, Sparkles,
-  ChefHat, Copy, RefreshCw, RotateCcw, BookOpen
+  ChefHat, Copy, RefreshCw, RotateCcw, BookOpen, Sun, Moon
 } from 'lucide-react';
 import { UserSettings, MealPlan, GroceryList } from '../types';
 import { copyToClipboard } from '../services/api';
@@ -43,6 +43,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [stores, setStores] = useState<string[]>([...(settings.stores || [])]);
   const [copied, setCopied] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('tastecraft_cooking_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {}
+    return (settings.theme as 'dark' | 'light') || 'dark';
+  });
+
+  const handleSelectTheme = (newTheme: 'dark' | 'light') => {
+    setTheme(newTheme);
+    try {
+      localStorage.setItem('tastecraft_cooking_theme', newTheme);
+    } catch {}
+  };
 
   const handleCopySummary = async () => {
     if (!mealPlan) return;
@@ -113,12 +127,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const trimmed = newPrefInput.trim();
     if (!trimmed) return;
 
-    // 1. Add to available preferences if not already there
     if (!availablePrefs.some(p => p.toLowerCase() === trimmed.toLowerCase())) {
       setAvailablePrefs(prev => [...prev, trimmed]);
     }
 
-    // 2. Immediately mark as active so it drops in active
     if (!activePrefs.some(p => p.toLowerCase() === trimmed.toLowerCase())) {
       setActivePrefs(prev => [...prev, trimmed]);
     }
@@ -141,7 +153,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         available_preferences: availablePrefs,
         preferences: activePrefs,
         servings,
-        custom_notes: customNotes
+        custom_notes: customNotes,
+        theme
       });
       setSavedSuccess(true);
       setTimeout(() => {
@@ -156,35 +169,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-[#181310] text-[#f5eedf] rounded-3xl shadow-2xl border border-[#34271D] w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="p-4 sm:p-5 border-b border-[#34271D] flex items-center justify-between bg-[#211A15]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 text-emerald-700 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30">
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Settings & Tools</h2>
-              <p className="text-xs text-slate-500">Plan tools, sync, AI dietary preferences, and store tagging</p>
+              <h2 className="text-base font-bold text-[#f5eedf]">Settings & Tools</h2>
+              <p className="text-xs text-[#a89988]">Theme, plan utilities, AI dietary preferences, and stores</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition cursor-pointer"
+            className="p-2 text-[#8c7b6d] hover:text-[#f5eedf] rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Theme Picking Section */}
+        <div className="px-4 py-3 bg-[#241C16] border-b border-[#34271D] flex items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold text-[#f5eedf] flex items-center gap-1.5">
+              <span>App Theme</span>
+            </span>
+            <p className="text-[11px] text-[#a89988]">Choose your preferred look across cooking and meal planning</p>
+          </div>
+          <div className="flex items-center p-1 bg-[#140F0C] rounded-xl border border-[#3B2C21] shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('dark')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                theme === 'dark'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-[#8c7b6d] hover:text-[#f5eedf]'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5" />
+              <span>Espresso Dark</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('light')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                theme === 'light'
+                  ? 'bg-[#EAE0CD] text-amber-950 shadow-xs'
+                  : 'text-[#8c7b6d] hover:text-[#f5eedf]'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-600" />
+              <span>Biscuit Light</span>
+            </button>
+          </div>
+        </div>
+
         {/* Quick Actions & Tools Bar */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200">
+        <div className="p-3 sm:p-4 bg-[#1C1612] border-b border-[#34271D]">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Quick Actions & Tools</span>
             </span>
-            <span className="text-[11px] text-slate-400">1-click utilities</span>
+            <span className="text-[11px] text-[#8c7b6d]">1-click utilities</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {/* Copy Plan */}
@@ -193,12 +242,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={handleCopySummary}
               className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer ${
                 copied
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs'
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
+                  : 'bg-[#241C16] border-[#3B2C21] text-[#d6c7b2] hover:bg-[#2C211A] hover:text-white shadow-xs'
               }`}
               title="Copy meal plan and grocery list"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-600" />}
+              {copied ? <Check className="w-4 h-4 text-amber-400" /> : <Copy className="w-4 h-4 text-[#a89988]" />}
               <span className="text-xs font-bold">{copied ? 'Copied!' : 'Copy Plan'}</span>
             </button>
 
@@ -208,10 +257,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={onRefreshData}
                 disabled={isSyncing}
-                className="p-2.5 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                className="p-2.5 rounded-xl border bg-[#241C16] border-[#3B2C21] text-[#d6c7b2] hover:bg-[#2C211A] hover:text-white shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
                 title="Refresh & sync data with server"
               >
-                <RefreshCw className={`w-4 h-4 text-slate-600 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                <RefreshCw className={`w-4 h-4 text-[#a89988] ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
                 <span className="text-xs font-bold">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
               </button>
             )}
@@ -224,10 +273,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClose();
                   onOpenGuide();
                 }}
-                className="p-2.5 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                className="p-2.5 rounded-xl border bg-[#241C16] border-[#3B2C21] text-[#d6c7b2] hover:bg-[#2C211A] hover:text-white shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
                 title="Open user guide"
               >
-                <BookOpen className="w-4 h-4 text-slate-600" />
+                <BookOpen className="w-4 h-4 text-[#a89988]" />
                 <span className="text-xs font-bold">User Guide</span>
               </button>
             )}
@@ -242,7 +291,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClose();
                   }
                 }}
-                className="p-2.5 rounded-xl border bg-white border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
+                className="p-2.5 rounded-xl border bg-[#241C16] border-[#3B2C21] text-rose-400 hover:bg-rose-950/30 hover:border-rose-800 shadow-xs flex flex-col items-center justify-center gap-1 text-center transition cursor-pointer"
                 title="Reset this week's plan"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -257,13 +306,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* AI Cooking Preferences (1-Click Suggestions) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-emerald-600" />
+              <label className="text-xs font-bold uppercase tracking-wider text-[#d6c7b2] flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" />
                 <span>AI Meal Preferences ({activePrefs.length} Active)</span>
               </label>
-              <span className="text-[11px] text-emerald-700 font-semibold">Tap to toggle on/off</span>
+              <span className="text-[11px] text-amber-400 font-semibold">Tap to toggle on/off</span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#a89988]">
               When you click "AI Suggestion" for any day or "AI Plan Entire Week", TasteCraft immediately generates meals tailored to all active preferences:
             </p>
 
@@ -277,13 +326,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClick={() => handleTogglePref(pref)}
                     className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between border transition cursor-pointer select-none group ${
                       isActive
-                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-semibold shadow-2xs'
-                        : 'bg-slate-50/70 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 font-semibold shadow-2xs'
+                        : 'bg-[#211A15] text-[#c8bba9] border-[#34271D] hover:bg-[#2C211A]'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0 pr-1">
                       <div className={`w-4 h-4 rounded-md flex items-center justify-center border shrink-0 ${
-                        isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'
+                        isActive ? 'bg-amber-600 border-amber-600 text-white' : 'border-[#4A392A] bg-[#140F0C]'
                       }`}>
                         {isActive && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
@@ -293,7 +342,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="button"
                       onClick={(e) => handleRemovePrefOption(e, pref)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 p-0.5 rounded transition shrink-0 ml-1"
+                      className="opacity-0 group-hover:opacity-100 text-[#8c7b6d] hover:text-rose-400 p-0.5 rounded transition shrink-0 ml-1"
                       title={`Remove "${pref}" preference option`}
                     >
                       <X className="w-3 h-3" />
@@ -316,12 +365,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }
                 }}
                 placeholder="Add new preference (e.g. Air fryer, No seafood, Thai flavors)..."
-                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-[#211A15] border border-[#34271D] text-[#f5eedf] placeholder-[#8c7b6d] focus:bg-[#181310] focus:border-amber-500 focus:outline-hidden"
               />
               <button
                 type="button"
                 onClick={handleAddCustomPref}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer shrink-0"
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add & Activate</span>
@@ -329,18 +378,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          <hr className="border-slate-100" />
+          <hr className="border-[#34271D]" />
 
           {/* Grocery Stores */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Store className="w-4 h-4 text-emerald-600" />
+              <label className="text-xs font-bold uppercase tracking-wider text-[#d6c7b2] flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-amber-400" />
                 <span>Customizable Grocery Stores</span>
               </label>
-              <span className="text-[11px] text-slate-400">{stores.length} Stores</span>
+              <span className="text-[11px] text-[#8c7b6d]">{stores.length} Stores</span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#a89988]">
               Stores appear as quick-tap boxes next to each grocery item on your phone:
             </p>
 
@@ -349,13 +398,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {stores.map((store) => (
                 <span
                   key={store}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200 group"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#211A15] text-[#f5eedf] text-xs font-semibold border border-[#34271D] group"
                 >
                   <span>{store}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveStore(store)}
-                    className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded transition cursor-pointer"
+                    className="text-[#8c7b6d] hover:text-rose-400 ml-1 p-0.5 rounded transition cursor-pointer"
                     title={`Remove ${store}`}
                   >
                     <X className="w-3 h-3" />
@@ -377,12 +426,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }
                 }}
                 placeholder="Add store (e.g. Costco, H-Mart)..."
-                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-[#211A15] border border-[#34271D] text-[#f5eedf] placeholder-[#8c7b6d] focus:bg-[#181310] focus:border-amber-500 focus:outline-hidden"
               />
               <button
                 type="button"
                 onClick={handleAddStore}
-                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-bold flex items-center gap-1 border border-slate-200 transition cursor-pointer shrink-0"
+                className="px-4 py-2.5 rounded-xl bg-[#2C211A] hover:bg-[#382B22] text-[#d6c7b2] hover:text-white text-xs font-bold flex items-center gap-1 border border-[#423223] transition cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Store</span>
@@ -390,12 +439,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          <hr className="border-slate-100" />
+          <hr className="border-[#34271D]" />
 
           {/* Household Custom Notes */}
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <ChefHat className="w-4 h-4 text-emerald-600" />
+            <label className="text-xs font-bold uppercase tracking-wider text-[#d6c7b2] flex items-center gap-1.5">
+              <ChefHat className="w-4 h-4 text-amber-400" />
               <span>Special Household Notes & Allergies</span>
             </label>
             <textarea
@@ -403,17 +452,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
               placeholder="e.g. We love Mexican and Asian flavors on weekends, no cilantro, always keep dinners under 45 mins..."
-              className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 focus:outline-hidden resize-none leading-relaxed"
+              className="w-full text-xs p-3 rounded-xl bg-[#211A15] border border-[#34271D] text-[#f5eedf] placeholder-[#8c7b6d] focus:bg-[#181310] focus:border-amber-500 focus:outline-hidden resize-none leading-relaxed"
             />
           </div>
         </form>
 
         {/* Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-t border-[#34271D] bg-[#211A15] flex items-center justify-between">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-[#8c7b6d] hover:text-[#f5eedf] hover:bg-[#2C211A] transition cursor-pointer"
           >
             Cancel
           </button>
@@ -421,11 +470,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold shadow-md shadow-amber-950 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             {savedSuccess ? (
               <>
-                <Check className="w-4 h-4" />
+                <Check className="w-4 h-4 stroke-[3]" />
                 <span>Saved!</span>
               </>
             ) : (

@@ -268,7 +268,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
   const activeConv = conversations.find(c => c.id === activeConvId);
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-130px)] md:h-[calc(100vh-120px)] max-w-4xl mx-auto bg-[#181310] text-[#f5eedf] rounded-2xl sm:rounded-3xl border border-[#34271D] shadow-xl overflow-hidden relative">
+    <div className="flex flex-col flex-1 h-[calc(100dvh-130px)] md:h-[calc(100vh-120px)] min-h-[380px] max-w-4xl mx-auto bg-[#181310] text-[#f5eedf] rounded-2xl sm:rounded-3xl border border-[#34271D] shadow-xl overflow-hidden relative">
       {/* Header bar with Conversation Switcher */}
       <div className="px-3 sm:px-4 py-2.5 bg-[#211A15] border-b border-[#34271D] flex items-center justify-between gap-2 z-10">
         <div className="relative">
@@ -391,7 +391,7 @@ export const ChatCopilot: React.FC<ChatCopilotProps> = ({
         <button
           type="button"
           onClick={handleNewConversation}
-          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          className="px-3 py-1.5 rounded-xl bg-[#2C211A] hover:bg-[#382B22] text-[#d6c7b2] hover:text-amber-300 border border-[#423223] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
           title="Start fresh conversation"
         >
           <Plus className="w-3.5 h-3.5" />

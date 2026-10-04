@@ -231,6 +231,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
     stopSpeaking();
 
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
+
     try {
       localStorage.removeItem('tastecraft_cooking_mode');
     } catch {}
@@ -311,7 +317,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setIsThinking(true);
 
     try {
-      const prompt = `[PANN EMERGENCY PANIC RESCUE]: The cook is mid-recipe cooking "${recipe.title}" on ${cookware}. CURRENT STEP: "${steps[currentStep]}". THE COOK CRIED OUT IN PANIC: "${issuePhrase}". Give an immediate, calm, 2-sentence culinary rescue instruction right now: tell them what to pull off the burner or adjust, and how to save the dish. Do not lecture. Be the calm Gordon Ramsay / friendly coach.`;
+      const prompt = `[TASTECRAFT EMERGENCY PANIC RESCUE]: The cook is mid-recipe cooking "${recipe.title}" on ${cookware}. CURRENT STEP: "${steps[currentStep]}". THE COOK CRIED OUT IN PANIC: "${issuePhrase}". Give an immediate, calm, 2-sentence culinary rescue instruction right now: tell them what to pull off the burner or adjust, and how to save the dish. Do not lecture. Be the calm Gordon Ramsay / friendly coach.`;
       
       const res = await sendChatMessage(prompt);
       const advice = res.reply.replace(/[*#_~`]/g, '').trim();
@@ -750,7 +756,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       {/* Top Header Bar - Tablet & Mobile Friendly (with safe area top for Android status bar) */}
       <header
-        className={`px-3 pt-safe pb-2.5 sm:px-6 sm:py-3.5 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
+        className={`px-3 pt-safe pb-2.5 sm:px-6 sm:py-3.5 landscape:py-1.5 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
           theme === 'light'
             ? 'bg-[#F2ECE1]/95 border-[#E5DAC6]'
             : 'bg-[#211A15]/95 border-[#34271D]'
@@ -788,22 +794,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           </div>
         </div>
 
-        {/* Right Controls: Theme, Speed, Cookware, Panic, Audio, Mic, and Prominent Exit */}
+        {/* Right Controls: Speed, Cookware, Panic, Audio, Mic, and Prominent Exit */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Theme Toggle: Light vs Warm Espresso Dark */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className={`p-2 sm:p-2.5 rounded-xl border transition cursor-pointer ${
-              theme === 'light'
-                ? 'bg-white hover:bg-stone-50 text-amber-900 border-[#DFD3BE] shadow-xs'
-                : 'bg-[#291F18] hover:bg-[#34271D] text-amber-300 border-[#423223]'
-            }`}
-            title={`Switch to ${theme === 'light' ? 'Dark Warm Brown' : 'Cookie Light'} theme`}
-          >
-            {theme === 'light' ? <Moon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-800" /> : <Sun className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400" />}
-          </button>
-
           {/* Voice Speed Toggle Pill: 1.0x, 1.15x (Default brisk), 1.3x */}
           <div
             className={`flex items-center rounded-xl p-0.5 border text-xs font-semibold ${
@@ -1324,7 +1316,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       {/* Big Bottom Action Controls - Phone & 11" Tablet Countertop Optimized */}
       <footer
-        className={`px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5 pb-safe border-t backdrop-blur-md flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10 transition-colors pl-safe pr-safe ${
+        className={`px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5 landscape:py-1.5 pb-safe border-t backdrop-blur-md flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10 transition-colors pl-safe pr-safe ${
           theme === 'light'
             ? 'bg-[#F2ECE1]/95 border-[#E5DAC6]'
             : 'bg-[#211A15]/95 border-[#34271D]'
@@ -1341,7 +1333,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             });
           }}
           disabled={currentStep === 0 && activeSection === 'steps'}
-          className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl disabled:opacity-30 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
+          className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 landscape:py-1.5 landscape:px-3 rounded-xl sm:rounded-2xl disabled:opacity-30 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
             theme === 'light'
               ? 'bg-white hover:bg-stone-50 text-stone-800 border-[#DED3BD]'
               : 'bg-[#291F18] hover:bg-[#34271D] text-stone-200 border-[#423223]'
@@ -1355,7 +1347,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           <button
             type="button"
             onClick={handleTogglePause}
-            className={`px-3 sm:px-6 md:px-7 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
+            className={`px-3 sm:px-6 md:px-7 py-3 sm:py-4 landscape:py-1.5 landscape:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
               isPaused
                 ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 border-amber-600 shadow-amber-500/20 animate-pulse'
                 : theme === 'light'
@@ -1377,7 +1369,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 speakCurrentStep(currentStep);
               }
             }}
-            className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
+            className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 landscape:py-1.5 landscape:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
               theme === 'light'
                 ? 'bg-white hover:bg-stone-50 text-amber-900 border-amber-300'
                 : 'bg-[#291F18] hover:bg-[#34271D] text-amber-300 border-amber-500/30'
@@ -1406,7 +1398,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               handleExitCooking();
             }
           }}
-          className="px-4 sm:px-8 md:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs sm:text-sm md:text-base font-black flex items-center gap-1.5 sm:gap-2 transition cursor-pointer shadow-xl shadow-amber-950/20 shrink-0 active:scale-95"
+          className="px-4 sm:px-8 md:px-10 py-3 sm:py-4 landscape:py-1.5 landscape:px-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs sm:text-sm md:text-base font-black flex items-center gap-1.5 sm:gap-2 transition cursor-pointer shadow-xl shadow-amber-950/20 shrink-0 active:scale-95"
         >
           <span>{currentStep === steps.length - 1 ? 'Done' : 'Next Step'}</span>
           <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />

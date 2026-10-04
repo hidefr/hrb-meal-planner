@@ -132,6 +132,7 @@ class UserSettings(BaseModel):
     ])
     servings: int = 2
     custom_notes: str = ""
+    theme: str = "dark" # "dark" (warm espresso) or "light" (warm biscuit cream)
 
 class ChatRequest(BaseModel):
     message: str

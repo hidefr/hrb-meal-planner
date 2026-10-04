@@ -27,7 +27,7 @@ export const AntiHomeworkBuilder: React.FC<AntiHomeworkProps> = ({ onCommitMeal,
     setIsLoading(true);
 
     try {
-      const prompt = `[PANN ANTI-HOMEWORK SINGLE DECISION]: The user has these exact items in their kitchen: "${ingredientsText}". They are cooking with: ${cookware}. Provide a single, mouth-watering, tailored recipe tailored for their ingredients and cookware.`;
+      const prompt = `[TASTECRAFT ANTI-HOMEWORK SINGLE DECISION]: The user has these exact items in their kitchen: "${ingredientsText}". They are cooking with: ${cookware}. Provide a single, mouth-watering, tailored recipe tailored for their ingredients and cookware.`;
       
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -91,7 +91,7 @@ export const AntiHomeworkBuilder: React.FC<AntiHomeworkProps> = ({ onCommitMeal,
 
   return (
     <div className="bg-[#181412] text-[#f5eedf] border border-[#3d2f24] rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
-      {/* Warm ambient radial backdrop like Pann */}
+      {/* Warm ambient radial backdrop */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-amber-600/15 via-orange-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
       {onClose && (
@@ -217,7 +217,7 @@ export const AntiHomeworkBuilder: React.FC<AntiHomeworkProps> = ({ onCommitMeal,
           <div className="bg-[#120f0d] border border-[#3e3025] rounded-3xl p-5 sm:p-7 relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                Pann Single Decision • {cookware.replace('_', ' ').toUpperCase()}
+                TasteCraft Single Decision • {cookware.replace('_', ' ').toUpperCase()}
               </span>
               <span className="text-xs text-stone-400 font-medium">
                 ⏱️ {recommendedRecipe.prep_time_mins + recommendedRecipe.cook_time_mins} mins total

@@ -118,6 +118,7 @@ export interface UserSettings {
   preferences: string[];
   servings: number;
   custom_notes: string;
+  theme?: 'dark' | 'light';
 }
 
 export interface ChatResponse {

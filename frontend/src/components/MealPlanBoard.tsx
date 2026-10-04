@@ -106,13 +106,13 @@ export const MealPlanBoard: React.FC<MealPlanBoardProps> = ({
         </div>
       </div>
 
-      {/* Pann "Anti-Homework" Core UX Hero Banner */}
+      {/* TasteCraft "Anti-Homework" Core UX Hero Banner */}
       {onOpenAntiHomework && (
         <div className="bg-gradient-to-r from-[#1c1612] via-[#241a13] to-[#1a1410] border border-amber-900/40 rounded-3xl p-4 sm:p-5 shadow-lg relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1 relative z-10 max-w-xl">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Pann Single Decision
+                TasteCraft Single Decision
               </span>
               <span className="text-xs text-amber-200/60">No decision fatigue</span>
             </div>
