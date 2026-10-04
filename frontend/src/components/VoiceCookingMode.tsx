@@ -756,7 +756,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       {/* Top Header Bar - Tablet & Mobile Friendly (with safe area top for Android status bar) */}
       <header
-        className={`px-3 pt-safe pb-2.5 sm:px-6 sm:py-3.5 landscape:py-1.5 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
+        className={`px-4 pt-safe pb-3 sm:px-6 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 z-20 transition-colors ${
           theme === 'light'
             ? 'bg-[#F2ECE1]/95 border-[#E5DAC6]'
             : 'bg-[#211A15]/95 border-[#34271D]'

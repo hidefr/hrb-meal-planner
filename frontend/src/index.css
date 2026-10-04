@@ -28,12 +28,20 @@ body {
 }
 
 .pt-safe {
-  padding-top: max(env(safe-area-inset-top, 0px), 36px);
+  padding-top: max(env(safe-area-inset-top, 0px), 42px) !important;
 }
 
-@media (orientation: landscape) and (max-height: 550px) {
+@media (min-width: 768px) {
   .pt-safe {
-    padding-top: max(env(safe-area-inset-top, 0px), 12px);
+    /* 11-inch tablets and larger screens have status/notification bar icons */
+    padding-top: max(env(safe-area-inset-top, 0px), 48px) !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Only compact mobile phones in horizontal landscape */
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top, 0px), 18px) !important;
   }
 }
 
@@ -63,4 +71,159 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #553e30;
+}
+
+/* =========================================================================
+   BISCUIT LIGHT THEME OVERRIDES (Activates when [data-theme="light"] is set)
+   ========================================================================= */
+
+body.theme-light,
+[data-theme="light"] body,
+[data-theme="light"] {
+  background-color: #FAF6EF !important;
+  color: #2C2117 !important;
+}
+
+/* App Background */
+[data-theme="light"] .bg-\[\#0d0a08\] {
+  background-color: #FAF6EF !important;
+  color: #2C2117 !important;
+}
+
+/* Top Navigation, Headers, Sticky Bars & Bottom Nav */
+[data-theme="light"] .bg-\[\#140f0c\],
+[data-theme="light"] .bg-\[\#140F0C\],
+[data-theme="light"] .bg-\[\#140f0c\]\/95,
+[data-theme="light"] .bg-\[\#140f0c\]\/90 {
+  background-color: rgba(242, 236, 225, 0.96) !important;
+}
+
+/* Main Cards, Board Sections, Modal Bodies */
+[data-theme="light"] .bg-\[\#16110e\],
+[data-theme="light"] .bg-\[\#18120e\],
+[data-theme="light"] .bg-\[\#181310\],
+[data-theme="light"] .bg-\[\#181412\],
+[data-theme="light"] .bg-\[\#1a1410\],
+[data-theme="light"] .bg-\[\#1c1612\] {
+  background-color: #FFFFFF !important;
+}
+
+/* Sub-cards, Nested Panels, Pills, Dropdowns */
+[data-theme="light"] .bg-\[\#211a15\],
+[data-theme="light"] .bg-\[\#211A15\],
+[data-theme="light"] .bg-\[\#201813\],
+[data-theme="light"] .bg-\[\#221a14\],
+[data-theme="light"] .bg-\[\#241a13\],
+[data-theme="light"] .bg-\[\#251d17\],
+[data-theme="light"] .bg-\[\#291f18\],
+[data-theme="light"] .bg-\[\#201712\],
+[data-theme="light"] .bg-\[\#241C16\],
+[data-theme="light"] .bg-\[\#2C211A\],
+[data-theme="light"] .bg-\[\#1C1612\],
+[data-theme="light"] .bg-\[\#2d1f18\],
+[data-theme="light"] .bg-\[\#34271D\],
+[data-theme="light"] .bg-\[\#382B22\],
+[data-theme="light"] .bg-\[\#34271f\],
+[data-theme="light"] .bg-\[\#241c17\],
+[data-theme="light"] .bg-\[\#120f0d\] {
+  background-color: #F5EFE6 !important;
+}
+
+/* Empty meal slot dashed cards */
+[data-theme="light"] .bg-\[\#130e0b\]\/60 {
+  background-color: rgba(247, 243, 235, 0.75) !important;
+}
+
+/* Borders */
+[data-theme="light"] .border-\[\#34271D\],
+[data-theme="light"] .border-\[\#3B2C21\],
+[data-theme="light"] .border-\[\#423223\],
+[data-theme="light"] .border-\[\#483627\],
+[data-theme="light"] .border-\[\#3d2f24\],
+[data-theme="light"] .border-\[\#423327\],
+[data-theme="light"] .border-stone-800,
+[data-theme="light"] .border-amber-950,
+[data-theme="light"] .border-amber-950\/50,
+[data-theme="light"] .border-amber-950\/60,
+[data-theme="light"] .border-amber-950\/70,
+[data-theme="light"] .border-amber-950\/80,
+[data-theme="light"] .border-amber-900\/40,
+[data-theme="light"] .border-amber-900\/30 {
+  border-color: #E2D7C7 !important;
+}
+
+/* Primary text headings & labels */
+[data-theme="light"] .text-\[\#f5eedf\],
+[data-theme="light"] .text-\[\#F5EEDB\],
+[data-theme="light"] .text-\[\#e0d3c1\],
+[data-theme="light"] .text-\[\#dcd1c2\],
+[data-theme="light"] .text-\[\#d6c7b2\] {
+  color: #2C2117 !important;
+}
+
+/* Secondary muted text */
+[data-theme="light"] .text-\[\#c8bba9\],
+[data-theme="light"] .text-\[\#a89988\],
+[data-theme="light"] .text-\[\#8c7b6d\],
+[data-theme="light"] .text-stone-300,
+[data-theme="light"] .text-stone-400 {
+  color: #7D6B58 !important;
+}
+
+/* Ensure amber text remains legible with high contrast against light backgrounds */
+[data-theme="light"] .text-amber-400 {
+  color: #B45309 !important;
+}
+
+[data-theme="light"] .text-amber-300 {
+  color: #92400E !important;
+}
+
+[data-theme="light"] .text-amber-200 {
+  color: #78350F !important;
+}
+
+/* Form inputs, textareas, and selects */
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background-color: #FFFFFF !important;
+  color: #2C2117 !important;
+  border-color: #D9CCB4 !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #9C8978 !important;
+}
+
+/* Hover states */
+[data-theme="light"] .hover\:bg-\[\#201712\]:hover,
+[data-theme="light"] .hover\:bg-\[\#2b2019\]:hover,
+[data-theme="light"] .hover\:bg-\[\#251d17\]:hover,
+[data-theme="light"] .hover\:bg-\[\#201813\]:hover,
+[data-theme="light"] .hover\:bg-\[\#2C211A\]:hover,
+[data-theme="light"] .hover\:bg-\[\#34271f\]:hover {
+  background-color: #EAE0CD !important;
+}
+
+[data-theme="light"] .hover\:text-\[\#f5eedf\]:hover {
+  color: #1A120B !important;
+}
+
+/* Modal dark overlays */
+[data-theme="light"] .bg-black\/80,
+[data-theme="light"] .bg-black\/70 {
+  background-color: rgba(44, 33, 23, 0.45) !important;
+}
+
+/* Light scrollbars */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #FAF6EF;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #D9CCB4;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #BFAA92;
 }

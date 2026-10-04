@@ -12,6 +12,7 @@ interface SettingsModalProps {
   groceryList?: GroceryList | null;
   onClose: () => void;
   onSave: (updated: UserSettings) => Promise<void>;
+  onSelectTheme?: (theme: 'dark' | 'light') => void;
   onRefreshData?: () => void;
   onResetPlan?: () => void;
   onOpenGuide?: () => void;
@@ -36,6 +37,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   groceryList,
   onClose,
   onSave,
+  onSelectTheme,
   onRefreshData,
   onResetPlan,
   onOpenGuide,
@@ -55,7 +57,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTheme(newTheme);
     try {
       localStorage.setItem('tastecraft_cooking_theme', newTheme);
+      document.documentElement.setAttribute('data-theme', newTheme);
+      document.body.classList.remove('theme-dark', 'theme-light');
+      document.body.classList.add(newTheme === 'light' ? 'theme-light' : 'theme-dark');
     } catch {}
+    if (onSelectTheme) {
+      onSelectTheme(newTheme);
+    }
   };
 
   const handleCopySummary = async () => {

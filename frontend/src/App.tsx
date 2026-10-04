@@ -88,8 +88,26 @@ export const App: React.FC = () => {
     ],
     preferences: ["Quick meals under 30 mins", "One-pot or sheet-pan meals", "Healthy & fresh veggies"],
     servings: 2,
-    custom_notes: ""
+    custom_notes: "",
+    theme: "dark"
   });
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('tastecraft_cooking_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {}
+    return 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(theme === 'light' ? 'theme-light' : 'theme-dark');
+    try {
+      localStorage.setItem('tastecraft_cooking_theme', theme);
+    } catch {}
+  }, [theme]);
+
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Modals state
@@ -113,6 +131,9 @@ export const App: React.FC = () => {
       setMealPlan(plan);
       setGroceryList(grocery);
       setUserSettings(settings);
+      if (settings?.theme === 'light' || settings?.theme === 'dark') {
+        setTheme(settings.theme);
+      }
     } catch (e) {
       console.error('Failed to load TasteCraft data:', e);
     } finally {
@@ -250,6 +271,9 @@ export const App: React.FC = () => {
   };
 
   const handleSaveSettings = async (updated: UserSettings) => {
+    if (updated.theme) {
+      setTheme(updated.theme);
+    }
     const saved = await updateSettings(updated);
     setUserSettings(saved);
   };
@@ -260,9 +284,12 @@ export const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d0a08] flex flex-col antialiased text-[#f5eedf]">
+    <div
+      className="min-h-screen bg-[#0d0a08] flex flex-col antialiased text-[#f5eedf] transition-colors duration-200"
+      data-theme={theme}
+    >
       {/* Mobile Top App Bar (Ensures clock, battery, Wi-Fi notch have safe breathing room) */}
-      <header className="md:hidden sticky top-0 z-30 bg-[#140f0c]/95 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-2.5 landscape:py-1.5 shadow-md flex items-center justify-between">
+      <header className="md:hidden sticky top-0 z-30 bg-[#140f0c]/95 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-3 shadow-md flex items-center justify-between transition-colors">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-white shadow-sm border border-amber-500/30">
             <ChefHat className="w-4 h-4 text-amber-200" />
@@ -278,8 +305,8 @@ export const App: React.FC = () => {
         </button>
       </header>
 
-      {/* Unified Desktop Navigation Bar */}
-      <header className="sticky top-0 z-30 bg-[#140f0c]/90 backdrop-blur-md border-b border-amber-950/50 px-4 py-2.5 shadow-md hidden md:block">
+      {/* Unified Desktop & Tablet Navigation Bar (Safe area padded for Android tablets) */}
+      <header className="sticky top-0 z-30 bg-[#140f0c]/90 backdrop-blur-md border-b border-amber-950/50 px-4 pt-safe pb-3 shadow-md hidden md:block transition-colors">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Brand */}
           <div className="flex items-center gap-2.5">
@@ -520,6 +547,7 @@ export const App: React.FC = () => {
           groceryList={groceryList}
           onClose={() => setIsSettingsOpen(false)}
           onSave={handleSaveSettings}
+          onSelectTheme={setTheme}
           onRefreshData={loadData}
           onResetPlan={handleResetPlan}
           onOpenGuide={() => handleSelectTab('guide')}
