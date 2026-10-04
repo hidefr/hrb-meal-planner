@@ -21,6 +21,11 @@ class Settings(BaseModel):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
     
+    # ElevenLabs Voice integration (Optional for ultra-lifelike neural chef speech)
+    elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
+    elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM") # Rachel (default warm voice)
+    elevenlabs_model_id: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+
     # Storage directory
     data_dir: Path = Path(__file__).resolve().parent.parent / "data"
 

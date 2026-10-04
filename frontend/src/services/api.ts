@@ -368,6 +368,7 @@ export interface VoiceAskResult {
   reply: string;
   ingredient_update?: IngredientAdaptation | null;
   ingredient_updates?: IngredientAdaptation[] | null;
+  updated_instructions?: string[] | null;
 }
 
 export interface VoiceConversationTurn {

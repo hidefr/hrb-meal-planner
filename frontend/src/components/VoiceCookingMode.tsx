@@ -143,6 +143,21 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     try { localStorage.setItem('tastecraft_voice_speed', String(newSpeed)); } catch {}
   };
 
+  // Voice Engine Quality: 'device' (Instant & Offline) vs 'neural' (Lifelike Cloud / ElevenLabs)
+  const [voiceEngine, setVoiceEngine] = useState<'device' | 'neural'>(() => {
+    try {
+      const saved = localStorage.getItem('tastecraft_voice_engine');
+      if (saved === 'neural' || saved === 'device') return saved;
+    } catch {}
+    return 'device';
+  });
+
+  const handleToggleVoiceEngine = (engine: 'device' | 'neural') => {
+    setVoiceEngine(engine);
+    try { localStorage.setItem('tastecraft_voice_engine', engine); } catch {}
+    setVoiceFeedback(engine === 'neural' ? '✨ Neural / ElevenLabs Voice Active' : '⚡ Device Voice Active');
+  };
+
   // Word-by-word reading progress ratio (0.0 to 1.0)
   const [speechProgress, setSpeechProgress] = useState<number>(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -509,10 +524,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         }
 
         let adaptedRecipeRef: Recipe | null = null;
+        let finalInstructions: string[] = [];
+        let finalIngredients: typeof ingredients = [];
 
         setCurrentRecipe(prev => {
           let updatedIngredients = [...(prev.ingredients || [])];
-          let updatedInstructions = [...(prev.instructions || [])];
+          let updatedInstructions = (res.updated_instructions && Array.isArray(res.updated_instructions) && res.updated_instructions.length > 0)
+            ? [...res.updated_instructions]
+            : [...(prev.instructions || [])];
 
           for (const update of updatesToApply) {
             const { old_name, new_name, new_amount, new_unit, notes } = update;
@@ -522,7 +541,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             const safeAmount = typeof new_amount === 'number' && !isNaN(new_amount) && new_amount > 0 ? new_amount : 1;
             let matched = false;
 
-            // 1. Try exact or substring match
+            // 1. Try exact or substring match in ingredients
             updatedIngredients = updatedIngredients.map(ing => {
               const ingLower = (ing.name || '').toLowerCase().trim();
               if (
@@ -575,19 +594,40 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               }
             }
 
-            // Also adapt recipe instructions if they mention the old ingredient
-            if (oldClean) {
-              try {
-                const escapedOld = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const oldRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
-                updatedInstructions = updatedInstructions.map(inst => {
-                  return typeof inst === 'string' && oldRegex.test(inst) ? inst.replace(oldRegex, new_name) : inst;
-                });
-              } catch (e) {
-                console.warn("Regex adaptation failed for", oldClean, e);
+            // 4. Fallback client-side instruction adaptation if backend did not provide updated_instructions
+            if (!res.updated_instructions || res.updated_instructions.length === 0) {
+              if (oldClean) {
+                try {
+                  const escapedOld = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  const oldRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
+                  updatedInstructions = updatedInstructions.map(inst => {
+                    return typeof inst === 'string' && oldRegex.test(inst) ? inst.replace(oldRegex, new_name) : inst;
+                  });
+                } catch (e) {
+                  console.warn("Regex adaptation failed for", oldClean, e);
+                }
               }
             }
           }
+
+          // 5. Fallback client-side additions adaptation if backend did not provide updated_instructions
+          if (!res.updated_instructions || res.updated_instructions.length === 0) {
+            const addedItems = updatesToApply.filter(u => !u.old_name && u.new_name);
+            if (addedItems.length > 0 && updatedInstructions.length > 0) {
+              const itemsList = addedItems.map(a => `${a.new_amount ? a.new_amount + ' ' : ''}${a.new_unit ? a.new_unit + ' ' : ''}${a.new_name}`.trim()).filter(Boolean);
+              if (itemsList.length > 0) {
+                const itemsPhrase = itemsList.length === 1 ? itemsList[0] : itemsList.join(', ');
+                const curIdx = currentStepRef.current >= 0 && currentStepRef.current < updatedInstructions.length ? currentStepRef.current : 0;
+                const orig = updatedInstructions[curIdx] || "";
+                if (!orig.toLowerCase().includes(addedItems[0].new_name.toLowerCase())) {
+                  updatedInstructions[curIdx] = `${orig.replace(/\.$/, '')}. (Incorporate ${itemsPhrase}).`;
+                }
+              }
+            }
+          }
+
+          finalInstructions = updatedInstructions;
+          finalIngredients = updatedIngredients;
 
           const adaptedRecipe: Recipe = {
             ...prev,
@@ -598,6 +638,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           adaptedRecipeRef = adaptedRecipe;
           return adaptedRecipe;
         });
+
+        // 🌟 SYNCHRONOUSLY UPDATE REFS IMMEDIATELY
+        // This guarantees that speakCurrentStep, voice navigation, and repeated reading immediately use
+        // the modified directions and ingredients without waiting for React re-render batching!
+        if (finalInstructions.length > 0) {
+          stepsRef.current = finalInstructions;
+        }
+        if (finalIngredients.length > 0) {
+          ingredientsRef.current = finalIngredients;
+        }
 
         // Safely propagate adapted recipe to parent decoupled from setState cycle
         if (onRecipeUpdated && adaptedRecipeRef) {
@@ -871,18 +921,24 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 3. Repeat / Read again / Repeat step / Reread
+    // 3. Repeat / Read again / Repeat step / Reread / Read step
     if (
       text === 'repeat' ||
       text === 'repeat step' ||
       text === 'repeat item' ||
       text === 'say again' ||
       text === 'read again' ||
+      text === 'read step' ||
+      text === 'read the step' ||
+      text === 'read current step' ||
       text === 'reread' ||
       text === 're-read' ||
       text.includes('reread') ||
       text.includes('repeat step') ||
-      text === 'what step'
+      text.includes('read step') ||
+      text === 'what step' ||
+      text === 'what is the step' ||
+      text === 'what is this step'
     ) {
       isProcessingCommandRef.current = false;
       setIsProcessingCommand(false);
@@ -1303,6 +1359,38 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
         {/* Right Controls: Speed, Cookware, Panic, Audio, Mic, and Prominent Exit */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Voice Engine Quality Pill: Device (0ms) vs Neural / ElevenLabs (Warm) */}
+          <div
+            className={`flex items-center rounded-xl p-0.5 border text-xs font-semibold ${
+              theme === 'light'
+                ? 'bg-[#EAE0CD] border-[#D9CCB4]'
+                : 'bg-[#291F18] border-[#423223]'
+            }`}
+            title="Voice Quality: Device (Instant offline) vs Neural / ElevenLabs (Warm & Lifelike)"
+          >
+            {[
+              { id: 'device' as const, label: '⚡ Device' },
+              { id: 'neural' as const, label: '✨ Neural' },
+            ].map(eng => (
+              <button
+                key={eng.id}
+                type="button"
+                onClick={() => handleToggleVoiceEngine(eng.id)}
+                className={`px-2 py-1 rounded-lg transition cursor-pointer text-[11px] font-bold ${
+                  voiceEngine === eng.id
+                    ? theme === 'light'
+                      ? 'bg-white text-amber-950 shadow-xs'
+                      : 'bg-amber-600 text-white shadow-xs'
+                    : theme === 'light'
+                    ? 'text-stone-600 hover:text-stone-900'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                {eng.label}
+              </button>
+            ))}
+          </div>
+
           {/* Voice Speed Toggle Pill: 1.0x, 1.15x (Default brisk), 1.3x */}
           <div
             className={`flex items-center rounded-xl p-0.5 border text-xs font-semibold ${

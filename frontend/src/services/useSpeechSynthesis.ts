@@ -8,6 +8,7 @@ export function useSpeechSynthesis() {
   const isPausedRef = useRef(false);
   const playbackTokenRef = useRef(0);
   const progressTimerRef = useRef<any>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   /**
    * Instantly stops and silences all speech.
@@ -22,14 +23,24 @@ export function useSpeechSynthesis() {
       progressTimerRef.current = null;
     }
 
-    // 1. Stop Web Speech Synthesis immediately
+    // 1. Stop Neural Audio playback immediately if active
+    if (currentAudioRef.current) {
+      try {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+        currentAudioRef.current.src = '';
+      } catch {}
+      currentAudioRef.current = null;
+    }
+
+    // 2. Stop Web Speech Synthesis immediately
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch {}
     }
 
-    // 2. Stop Native Android TextToSpeech immediately
+    // 3. Stop Native Android TextToSpeech immediately
     if (isNative) {
       try {
         await TextToSpeech.stop();
@@ -50,14 +61,21 @@ export function useSpeechSynthesis() {
       progressTimerRef.current = null;
     }
 
-    // 1. Cancel Web Speech Synthesis immediately
+    // 1. Pause Neural Audio if active
+    if (currentAudioRef.current) {
+      try {
+        currentAudioRef.current.pause();
+      } catch {}
+    }
+
+    // 2. Cancel Web Speech Synthesis immediately
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch {}
     }
 
-    // 2. Stop Native Android TTS immediately
+    // 3. Stop Native Android TTS immediately
     if (isNative) {
       try {
         await TextToSpeech.stop();
@@ -69,6 +87,14 @@ export function useSpeechSynthesis() {
    * Resumes speech (caller re-triggers reading the current step if paused).
    */
   const resume = useCallback(() => {
+    if (currentAudioRef.current && isPausedRef.current) {
+      try {
+        currentAudioRef.current.play();
+        isPausedRef.current = false;
+        isSpeakingRef.current = true;
+        return true;
+      } catch {}
+    }
     isPausedRef.current = false;
     return false; // Tells caller to smoothly re-read the step
   }, []);
@@ -156,6 +182,42 @@ export function useSpeechSynthesis() {
         if (onEnd) onEnd();
       }
     };
+
+    // 🌟 0. If Neural / ElevenLabs voice engine is enabled in settings, stream lifelike neural audio
+    let engine = 'device';
+    try {
+      engine = localStorage.getItem('tastecraft_voice_engine') || 'device';
+    } catch {}
+
+    if (engine === 'neural') {
+      try {
+        const rateParam = speed >= 1.25 ? '+20%' : speed >= 1.1 ? '+10%' : '+0%';
+        const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}&voice=${encodeURIComponent(_voiceId)}&rate=${encodeURIComponent(rateParam)}`;
+        const audio = new Audio(audioUrl);
+        currentAudioRef.current = audio;
+
+        audio.onplay = () => {
+          if (playbackTokenRef.current === playbackToken) {
+            startWordTracking();
+          }
+        };
+
+        audio.onended = () => {
+          if (playbackTokenRef.current === playbackToken) {
+            handleFinished();
+          }
+        };
+
+        audio.onerror = () => {
+          console.warn("Neural TTS audio unavailable or offline, continuing to device fallback.");
+        };
+
+        await audio.play();
+        return;
+      } catch (err) {
+        console.warn("Neural audio play failed, falling back to device speech:", err);
+      }
+    }
 
     // 🌟 1. On Native Android App: Use Android Native TextToSpeech plugin (Instant, zero lag, zero buffering)
     if (isNative) {
