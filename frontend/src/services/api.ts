@@ -355,3 +355,21 @@ export async function searchMediaForRecipe(recipeTitle: string, tags?: string[],
   if (!res.ok) throw new Error('Failed to search recipe media');
   return res.json();
 }
+
+export async function askVoiceAssistant(params: {
+  query: string;
+  recipe_title: string;
+  current_step?: string;
+  step_number?: number;
+  cookware?: string;
+  ingredients?: string[];
+}): Promise<{ reply: string }> {
+  const res = await fetch(`${API_BASE}/voice/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error('Voice assistant query failed');
+  return res.json();
+}
+

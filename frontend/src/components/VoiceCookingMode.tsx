@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Recipe } from '../types';
 import { useSpeechSynthesis } from '../services/useSpeechSynthesis';
-import { sendChatMessage } from '../services/api';
+import { askVoiceAssistant, sendChatMessage } from '../services/api';
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor } from '@capacitor/core';
@@ -134,10 +134,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const steps = recipe.instructions || [];
   const ingredients = recipe.ingredients || [];
 
-  // Cookware adaptive tips & sensorial cues
-  const getCookwareGuidance = (stepText: string): { tip: string; cue: string } | null => {
+  // Cookware adaptive tips & sensorial cues - only show when relevant on step 1 (preheating/heating pan)
+  const getCookwareGuidance = (stepText: string, stepIdx: number): { tip: string; cue: string } | null => {
+    // Only show sensorial cookware guidance on the initial heating/prep step, not on every page
+    if (stepIdx > 1) return null;
     const lower = stepText.toLowerCase();
-    const isHeatStep = lower.includes('heat') || lower.includes('sear') || lower.includes('oil') || lower.includes('pan') || lower.includes('skillet');
+    const isHeatStep = lower.includes('heat') || lower.includes('sear') || lower.includes('oil') || lower.includes('preheat') || lower.includes('pan') || lower.includes('skillet');
     
     if (!isHeatStep) return null;
 
@@ -264,16 +266,29 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     const speechScript = stepText;
 
     if (autoSpeak) {
+      let lastReportedWordIdx = -1;
+      const stepWordCount = Math.max(1, stepText.split(/\s+/).filter(Boolean).length);
+
       speak(
         speechScript,
-        () => setSpeechProgress(0),
         () => {
+          lastReportedWordIdx = -1;
+          setSpeechProgress(0);
+        },
+        () => {
+          lastReportedWordIdx = -1;
           setSpeechProgress(1.0);
           setIsPaused(false);
         },
         'en-US-AvaNeural',
         voiceSpeed,
-        (progress) => setSpeechProgress(progress)
+        (progress) => {
+          const wIdx = Math.floor(progress * stepWordCount);
+          if (wIdx !== lastReportedWordIdx) {
+            lastReportedWordIdx = wIdx;
+            setSpeechProgress(progress);
+          }
+        }
       );
     }
   }, [steps, autoSpeak, speak, voiceSpeed]);
@@ -347,47 +362,99 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setIsThinking(true);
     setVoiceFeedback(`Chef is thinking...`);
 
-    try {
-      const currentStepText = steps[currentStep] || "None";
-      const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`).join(', ');
-      const prompt = `[CONTEXT: The user is currently cooking "${recipe.title}". Current Step #${currentStep + 1}: "${currentStepText}". Cookware: ${cookware}. Ingredients: ${ingList}]. USER ASKS VIA HANDS-FREE VOICE: "${query}". Keep your response empathetic, friendly, and very concise (1 to 2 short spoken sentences) using sensorial cues (smell, sound, color, touch) rather than technical temperatures.`;
+    // Stop current reading immediately so user hears the chef's answer clearly
+    stopSpeaking();
 
-      const res = await sendChatMessage(prompt);
+    try {
+      const currentStepText = steps[currentStep] || "";
+      const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`);
+
+      // Call dedicated ultra-fast voice endpoint
+      const res = await askVoiceAssistant({
+        query,
+        recipe_title: recipe.title,
+        current_step: currentStepText,
+        step_number: currentStep + 1,
+        cookware,
+        ingredients: ingList,
+      });
+
       if (isClosedRef.current) return;
 
       const answer = res.reply.replace(/[*#_~`]/g, '').trim();
       setAiResponse(answer);
-      setVoiceFeedback(`Chef answered`);
+      setVoiceFeedback(`Chef: "${answer.slice(0, 30)}..."`);
       if (autoSpeak) {
-        speak(answer);
+        speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
       }
     } catch (err) {
       if (isClosedRef.current) return;
-      console.error("AI query failed:", err);
-      const fallback = "I couldn't reach the AI assistant right now. You can try asking again in a moment.";
-      setAiResponse(fallback);
-      setVoiceFeedback('Assistant error');
-      if (autoSpeak) {
-        speak(fallback);
+      console.error("Fast voice assistant query failed, falling back to chat:", err);
+      try {
+        const currentStepText = steps[currentStep] || "None";
+        const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`).join(', ');
+        const prompt = `[CONTEXT: The user is cooking "${recipe.title}". Step #${currentStep + 1}: "${currentStepText}". Cookware: ${cookware}. Ingredients: ${ingList}]. USER ASKS VIA VOICE: "${query}". Answer in 1 to 2 short sentences.`;
+        const res = await sendChatMessage(prompt);
+        if (isClosedRef.current) return;
+        const answer = res.reply.replace(/[*#_~`]/g, '').trim();
+        setAiResponse(answer);
+        setVoiceFeedback(`Chef answered`);
+        if (autoSpeak) {
+          speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+        }
+      } catch (fallbackErr) {
+        if (isClosedRef.current) return;
+        const fallback = "I couldn't reach the AI assistant right now. You can ask again in a moment.";
+        setAiResponse(fallback);
+        setVoiceFeedback('Assistant unavailable');
+        if (autoSpeak) {
+          speak(fallback, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+        }
       }
     } finally {
       isThinkingRef.current = false;
       setIsThinking(false);
     }
-  }, [recipe.title, currentStep, steps, ingredients, autoSpeak, speak, cookware]);
+  }, [recipe.title, currentStep, steps, ingredients, autoSpeak, speak, cookware, stopSpeaking, voiceSpeed]);
 
   // Handle Selective Voice Commands & Hotword-triggered AI Questions
   const handleVoiceCommand = useCallback((rawTranscript: string) => {
     if (isClosedRef.current) return;
 
-    // Ignore voice recognition while the app is speaking its own text!
-    if (isSpeakingRef.current) {
+    const text = rawTranscript.toLowerCase().trim();
+    if (!text || text.length < 2) return;
+
+    // Check if the utterance is an intentional command that should interrupt speaking
+    const isInterruptIntent =
+      text === 'pause' ||
+      text === 'stop' ||
+      text === 'quiet' ||
+      text === 'silence' ||
+      text.includes('pause') ||
+      text.includes('stop speaking') ||
+      text === 'next' ||
+      text === 'next step' ||
+      text === 'continue' ||
+      text === 'back' ||
+      text === 'previous' ||
+      text === 'previous step' ||
+      text === 'repeat' ||
+      text === 'repeat step' ||
+      text.includes('chef') ||
+      text.includes('tastecraft') ||
+      text.includes('smoke') ||
+      text.includes('smoking') ||
+      text.includes('burning') ||
+      text.includes('burn') ||
+      text.includes('sticking') ||
+      text.includes('stuck') ||
+      text.includes('panic');
+
+    // If app is speaking and the transcript is NOT a user command/question, ignore as echo!
+    if (isSpeakingRef.current && !isInterruptIntent) {
       console.log("Ignoring echo input while speaking:", rawTranscript);
       return;
     }
-
-    const text = rawTranscript.toLowerCase().trim();
-    if (!text || text.length < 2) return;
 
     setLastHeard(rawTranscript);
 
@@ -588,11 +655,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           const startNativeLoop = async () => {
             while (isListeningRef.current && !isClosedRef.current) {
               try {
-                if (isSpeakingRef.current) {
-                  await new Promise(r => setTimeout(r, 600));
-                  continue;
-                }
-
                 const res = await NativeSpeechRecognition.start({
                   language: 'en-US',
                   maxResults: 1,
@@ -601,11 +663,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                   popup: false,
                 });
                 if (isClosedRef.current) break;
-                if (res.matches && res.matches.length > 0 && !isSpeakingRef.current) {
+                if (res.matches && res.matches.length > 0) {
                   handleVoiceCommand(res.matches[0]);
                 }
               } catch (e) {
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 600));
               }
             }
           };
@@ -722,7 +784,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   }, []);
 
   const currentStepText = steps[currentStep] || "Enjoy your meal!";
-  const activeGuidance = getCookwareGuidance(currentStepText);
+  const activeGuidance = getCookwareGuidance(currentStepText, currentStep);
 
   // Split step text into words for word-by-word reading highlighting
   const words = currentStepText.split(/\s+/).filter(Boolean);
@@ -829,9 +891,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             ))}
           </div>
 
-          {/* Cookware Selector Pill (Tablet/Desktop) */}
+          {/* Cookware Selector Pill (Visible across screen widths) */}
           <div
-            className={`hidden xl:flex items-center rounded-xl p-0.5 border text-xs ${
+            className={`flex items-center rounded-xl p-0.5 border text-xs ${
               theme === 'light'
                 ? 'bg-[#EAE0CD] border-[#D9CCB4]'
                 : 'bg-[#291F18] border-[#423223]'
@@ -862,15 +924,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             ))}
           </div>
 
-          {/* Panic Button */}
+          {/* Panic Button - Subtle & Compact */}
           <button
             type="button"
             onClick={() => triggerPanicRescue("Help! My pan is smoking and food is sticking!")}
-            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer transition active:scale-95"
-            title="Panic Rescue - Instant troubleshooting advice"
+            className={`p-2 sm:px-2.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1 border transition cursor-pointer active:scale-95 ${
+              theme === 'light'
+                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                : 'bg-rose-950/40 text-rose-400 border-rose-900/40 hover:bg-rose-900/50'
+            }`}
+            title="Kitchen Rescue - Instant help for smoking, burning, or sticking"
           >
-            <ShieldAlert className="w-4 h-4 text-white" />
-            <span className="hidden md:inline">Panic</span>
+            <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
+            <span className="hidden lg:inline text-[11px]">Rescue</span>
           </button>
 
           {/* Audio speech toggle */}

@@ -4,6 +4,10 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 import edge_tts
 
+from pydantic import BaseModel
+from openai import AsyncOpenAI
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
@@ -12,6 +16,61 @@ DEFAULT_VOICE = "en-US-AvaNeural" # Warm, natural, friendly chef voice
 
 # In-memory LRU-like audio cache for instantaneous, jitter-free playback
 _TTS_CACHE: dict[tuple[str, str, str], bytes] = {}
+
+class VoiceAskRequest(BaseModel):
+    query: str
+    recipe_title: str
+    current_step: str = ""
+    step_number: int = 1
+    cookware: str = "stainless"
+    ingredients: list[str] = []
+
+@router.post("/ask")
+async def voice_ask(req: VoiceAskRequest):
+    """
+    Ultra-fast, hands-free culinary advice tailored for quick voice response.
+    Returns 1-2 spoken sentences directly answerable in <500ms without tool-calling latency.
+    """
+    clean_query = req.query.strip()
+    if not clean_query:
+        return {"reply": "I'm listening. Ask me any question about your recipe or ingredients."}
+
+    client = AsyncOpenAI(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url
+    )
+
+    ing_summary = ", ".join(req.ingredients[:15]) if req.ingredients else "Standard pantry"
+
+    system_prompt = (
+        "You are Chef, an instant real-time kitchen voice assistant for someone cooking at the stove. "
+        f"They are cooking '{req.recipe_title}'. "
+        f"Current step #{req.step_number}: '{req.current_step}'. "
+        f"Cookware: {req.cookware}. "
+        f"Ingredients: {ing_summary}. "
+        "CRITICAL RULES: Answer immediately in 1 or 2 spoken sentences (maximum 35 words). "
+        "Never use markdown, lists, bullet points, asterisks, or temperatures. "
+        "Be direct, warm, empathetic, and spoken aloud. Example: 'You can substitute heavy cream with a splash of broth one-to-one, or use whole milk with a pat of butter.'"
+    )
+
+    try:
+        completion = await client.chat.completions.create(
+            model=settings.llm_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": clean_query}
+            ],
+            max_tokens=300,
+            temperature=0.3
+        )
+        raw_reply = completion.choices[0].message.content or ""
+        clean_reply = raw_reply.replace("*", "").replace("#", "").replace("`", "").strip()
+        if not clean_reply:
+            clean_reply = "I'm not sure about that substitution, but standard butter, oil, or cream usually work well in a pinch."
+        return {"reply": clean_reply}
+    except Exception as e:
+        logger.error(f"Voice ask error: {e}")
+        return {"reply": "I couldn't reach the culinary coach right now. Try asking again in a moment."}
 
 @router.get("/tts")
 async def text_to_speech(

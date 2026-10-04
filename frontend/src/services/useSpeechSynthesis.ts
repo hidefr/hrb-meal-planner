@@ -45,6 +45,7 @@ export function useSpeechSynthesis() {
   }, [isNative]);
 
   const pause = useCallback(() => {
+    isSpeakingRef.current = false;
     if (animFrameRef.current !== null) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -62,6 +63,7 @@ export function useSpeechSynthesis() {
   }, []);
 
   const resume = useCallback(() => {
+    isSpeakingRef.current = true;
     if (currentAudioRef.current && currentAudioRef.current.paused) {
       try {
         currentAudioRef.current.play();
