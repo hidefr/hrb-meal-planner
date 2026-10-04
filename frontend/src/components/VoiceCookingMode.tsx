@@ -972,25 +972,17 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setActiveSection('steps');
 
     if (steps.length > 0 && autoSpeak) {
-      const isResuming = stepIdx > 0;
-      const intro = isResuming
-        ? `Welcome back to ${currentRecipe.title}. Resuming at step ${stepIdx + 1}. Cookware set to ${cookware.replace('_', ' ')}.`
-        : `Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}.`;
-
-      speak(
-        intro,
-        () => setVoiceFeedback(`Starting at Step ${stepIdx + 1}...`),
-        () => {
-          if (!isClosedRef.current) {
-            speakCurrentStep(stepIdx);
-          }
-        },
-        'en-US-AvaNeural',
-        voiceSpeed
-      );
+      // Speak current step directly to eliminate introductory delay and chained audio latency
+      speakCurrentStep(stepIdx);
     }
-    startHandsFreeRef.current();
-  }, [currentRecipe.title, cookware, autoSpeak, speak, voiceSpeed, speakCurrentStep, steps.length]);
+
+    // Delay hands-free mic startup briefly (~350ms) so audio hardware initializes cleanly without buffer contention
+    setTimeout(() => {
+      if (!isClosedRef.current) {
+        startHandsFreeRef.current();
+      }
+    }, 350);
+  }, [autoSpeak, speakCurrentStep, steps.length]);
   const startHandsFree = useCallback(async () => {
     if (isClosedRef.current) return;
 

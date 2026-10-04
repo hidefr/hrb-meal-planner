@@ -74,27 +74,35 @@ export function useSpeechRecognition({ onTranscriptChange, getCurrentText }: Use
       };
 
       recognition.onresult = (event: any) => {
-        let allFinalTranscript = '';
-        let interimTranscript = '';
+        let currentFinal = '';
+        let currentInterim = '';
 
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           const item = event.results[i];
           if (item.isFinal) {
-            allFinalTranscript += item[0].transcript;
+            currentFinal += item[0].transcript;
           } else {
-            interimTranscript += item[0].transcript;
+            currentInterim += item[0].transcript;
           }
         }
 
-        const base = baseTextRef.current;
-        const totalSessionSpeech = (allFinalTranscript + interimTranscript).trim();
-
-        if (totalSessionSpeech) {
+        const chunk = (currentFinal || currentInterim).trim();
+        if (chunk) {
+          const base = baseTextRef.current;
           let separator = '';
           if (base && !base.endsWith(' ') && !base.endsWith('\n')) {
             separator = ' ';
           }
-          onTranscriptChange(base + separator + totalSessionSpeech);
+          onTranscriptChange(base + separator + chunk);
+        }
+
+        if (currentFinal) {
+          const base = baseTextRef.current;
+          let separator = '';
+          if (base && !base.endsWith(' ') && !base.endsWith('\n')) {
+            separator = ' ';
+          }
+          baseTextRef.current = (base + separator + currentFinal.trim()).trim();
         }
       };
 
