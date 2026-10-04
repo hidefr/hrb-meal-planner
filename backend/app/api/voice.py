@@ -68,20 +68,12 @@ async def voice_ask(req: VoiceAskRequest):
         f"Recipe ingredients: {ing_summary}. "
         "CRITICAL RULES FOR SPOKEN REPLY: Answer in 1 or 2 warm spoken sentences (maximum 35 words). "
         "Never use markdown formatting, bullet points, asterisks, or technical temperatures in the spoken response. "
-        "ADAPTATION RULE: If the user is asking to replace or substitute an ingredient they don't have (e.g., 'I don't have X, can we use Y?'), "
-        "provide your 1-2 spoken sentences first, followed by a JSON block formatted exactly like this:\n"
-        "```json\n"
-        "{\n"
-        '  "adaptation": {\n'
-        '    "old_name": "name of missing ingredient from recipe",\n'
-        '    "new_name": "name of proposed replacement ingredient",\n'
-        '    "new_amount": 1.0,\n'
-        '    "new_unit": "cup",\n'
-        '    "notes": "whisked in on low heat"\n'
-        "  }\n"
-        "}\n"
-        "```\n"
-        "If no ingredient is being replaced, do NOT output any JSON block."
+        "ADAPTATION RULE: If the user asks to add an ingredient, substitute, or replace an ingredient (e.g. 'add broccoli to the recipe' or 'I don't have coconut milk, can we use milk?'), "
+        "provide your warm 1-2 spoken sentences first, followed by a line starting with ADAPTATION: like this:\n"
+        'ADAPTATION: {"action": "add", "old_name": "", "new_name": "broccoli", "new_amount": 1.0, "new_unit": "cup", "notes": "cut into florets"}\n'
+        'or for substitutions:\n'
+        'ADAPTATION: {"action": "replace", "old_name": "coconut milk", "new_name": "whole milk", "new_amount": 1.0, "new_unit": "cup", "notes": "whisk in slowly"}\n'
+        "If no ingredient is being added or replaced, do NOT output any ADAPTATION line."
     )
 
     try:
@@ -91,21 +83,39 @@ async def voice_ask(req: VoiceAskRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": clean_query}
             ],
-            max_tokens=400,
-            temperature=0.3
+            max_tokens=600,
+            temperature=0.2
         )
         raw_reply = completion.choices[0].message.content or ""
         
         spoken_reply = raw_reply
         ingredient_update = None
 
-        if "```json" in raw_reply:
+        # Check for ADAPTATION: line or ```json block
+        if "ADAPTATION:" in raw_reply:
+            parts = raw_reply.split("ADAPTATION:")
+            spoken_reply = parts[0].strip()
+            json_str = parts[1].strip().split("\n")[0].strip()
+            try:
+                parsed = json.loads(json_str)
+                adapt = parsed.get("adaptation") if isinstance(parsed, dict) and "adaptation" in parsed else parsed
+                if adapt and isinstance(adapt, dict) and adapt.get("new_name"):
+                    ingredient_update = IngredientUpdate(
+                        old_name=str(adapt.get("old_name", "")),
+                        new_name=str(adapt.get("new_name", "")),
+                        new_amount=float(adapt["new_amount"]) if adapt.get("new_amount") is not None else None,
+                        new_unit=str(adapt.get("new_unit", "")) if adapt.get("new_unit") else None,
+                        notes=str(adapt.get("notes", "")) if adapt.get("notes") else None
+                    )
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse ADAPTATION line: {parse_err}")
+        elif "```json" in raw_reply:
             parts = raw_reply.split("```json")
             spoken_reply = parts[0].strip()
             json_text = parts[1].split("```")[0].strip()
             try:
                 parsed = json.loads(json_text)
-                adapt = parsed.get("adaptation")
+                adapt = parsed.get("adaptation") if isinstance(parsed, dict) and "adaptation" in parsed else parsed
                 if adapt and isinstance(adapt, dict) and adapt.get("new_name"):
                     ingredient_update = IngredientUpdate(
                         old_name=str(adapt.get("old_name", "")),
@@ -120,7 +130,7 @@ async def voice_ask(req: VoiceAskRequest):
         # Clean any remaining markdown artifacts from spoken text
         clean_reply = spoken_reply.replace("*", "").replace("#", "").replace("`", "").strip()
         if not clean_reply:
-            clean_reply = "I'm not sure about that substitution, but standard butter, oil, or cream usually work well in a pinch."
+            clean_reply = "I've noted that for your recipe! Let's keep cooking."
 
         return VoiceAskResponse(
             reply=clean_reply,

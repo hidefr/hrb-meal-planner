@@ -128,6 +128,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
 
+  // Busy/Processing state: prevents voice command overloading while Chef is calculating or responding
+  const [isProcessingCommand, setIsProcessingCommand] = useState(false);
+  const isProcessingCommandRef = useRef(false);
+
   const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, isSpeakingRef } = useSpeechSynthesis();
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
@@ -224,6 +228,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     isClosedRef.current = true;
     isListeningRef.current = false;
     isThinkingRef.current = false;
+    isProcessingCommandRef.current = false;
+    setIsProcessingCommand(false);
     setIsListening(false);
 
     releaseScreenKeepAwake();
@@ -373,6 +379,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (isThinkingRef.current || isClosedRef.current) return;
     isThinkingRef.current = true;
     setIsThinking(true);
+    isProcessingCommandRef.current = true;
+    setIsProcessingCommand(true);
     setVoiceFeedback(`Chef is thinking...`);
 
     // Stop current reading immediately so user hears the chef's answer clearly
@@ -411,7 +419,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             const ingLower = ing.name.toLowerCase();
             if (
               !matched &&
-              (ingLower.includes(oldLower) || (oldLower && oldLower.includes(ingLower)))
+              oldLower &&
+              (ingLower.includes(oldLower) || oldLower.includes(ingLower))
             ) {
               matched = true;
               return {
@@ -425,19 +434,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             return ing;
           });
 
-          // If no direct substring match was found, replace or append seamlessly
-          if (!matched && old_name) {
+          // If no existing ingredient was replaced, add the new ingredient!
+          if (!matched) {
             updatedIngredients.push({
               name: new_name,
               amount: new_amount || 1,
               unit: new_unit || 'item',
-              category: 'Pantry',
-              notes: notes ? `${notes} (substituted for ${old_name})` : `substituted for ${old_name}`
+              category: 'Produce',
+              notes: notes || undefined
             });
           }
 
           // Also adapt recipe instructions if they mention the old ingredient
-          const oldRegex = old_name ? new RegExp(`\\b${old_name}\\b`, 'gi') : null;
+          const oldRegex = old_name && old_name.trim() ? new RegExp(`\\b${old_name.trim()}\\b`, 'gi') : null;
           const updatedInstructions = (prev.instructions || []).map(inst => {
             if (oldRegex && oldRegex.test(inst)) {
               return inst.replace(oldRegex, new_name);
@@ -465,7 +474,20 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       }
 
       if (autoSpeak) {
-        speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+        speak(
+          answer,
+          undefined,
+          () => {
+            // Unblock processing once answer finishes speaking
+            isProcessingCommandRef.current = false;
+            setIsProcessingCommand(false);
+          },
+          'en-US-AvaNeural',
+          voiceSpeed
+        );
+      } else {
+        isProcessingCommandRef.current = false;
+        setIsProcessingCommand(false);
       }
     } catch (err) {
       if (isClosedRef.current) return;
@@ -480,7 +502,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         setAiResponse(answer);
         setVoiceFeedback(`Chef answered`);
         if (autoSpeak) {
-          speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+          speak(
+            answer,
+            undefined,
+            () => {
+              isProcessingCommandRef.current = false;
+              setIsProcessingCommand(false);
+            },
+            'en-US-AvaNeural',
+            voiceSpeed
+          );
+        } else {
+          isProcessingCommandRef.current = false;
+          setIsProcessingCommand(false);
         }
       } catch (fallbackErr) {
         if (isClosedRef.current) return;
@@ -488,7 +522,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         setAiResponse(fallback);
         setVoiceFeedback('Assistant unavailable');
         if (autoSpeak) {
-          speak(fallback, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
+          speak(
+            fallback,
+            undefined,
+            () => {
+              isProcessingCommandRef.current = false;
+              setIsProcessingCommand(false);
+            },
+            'en-US-AvaNeural',
+            voiceSpeed
+          );
+        } else {
+          isProcessingCommandRef.current = false;
+          setIsProcessingCommand(false);
         }
       }
     } finally {
@@ -520,6 +566,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'previous step' ||
       text === 'repeat' ||
       text === 'repeat step' ||
+      text === 'reread' ||
+      text.includes('reread') ||
       text.includes('chef') ||
       text.includes('tastecraft') ||
       text.includes('cookie') ||
@@ -540,6 +588,25 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     if (isSpeakingRef.current && !isInterruptIntent) {
       console.log("Ignoring echo input while speaking:", rawTranscript);
       return;
+    }
+
+    // Capacity & Flow Guard: If Chef is already thinking, formulating advice, or doing an AI query,
+    // only allow immediate safety/interruption commands ('stop', 'pause', 'panic', 'exit').
+    // Reject other speech so the app never gets overwhelmed or backlogged!
+    if (isProcessingCommandRef.current || isThinkingRef.current) {
+      const isUrgentOverride =
+        text === 'stop' ||
+        text === 'pause' ||
+        text.includes('panic') ||
+        text.includes('smoke') ||
+        text.includes('fire') ||
+        text === 'exit';
+
+      if (!isUrgentOverride) {
+        console.log("Chef is currently busy processing; dropping extra command:", rawTranscript);
+        setVoiceFeedback('Chef is working... please wait');
+        return;
+      }
     }
 
     setLastHeard(rawTranscript);
@@ -596,12 +663,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 3. Repeat / Read again / Repeat step
+    // 3. Repeat / Read again / Repeat step / Reread
     if (
       text === 'repeat' ||
       text === 'repeat step' ||
       text === 'say again' ||
       text === 'read again' ||
+      text === 'reread' ||
+      text.includes('reread') ||
       text.includes('repeat step') ||
       text === 'what step'
     ) {
@@ -644,6 +713,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     ) {
       pauseSpeaking();
       setIsPaused(true);
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
       setVoiceFeedback('⏸️ Paused speech');
       return;
     }
@@ -697,7 +768,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith("can i substitute") ||
       text.startsWith("what can i substitute") ||
       text.startsWith("what can i use instead of") ||
-      text.startsWith("can i replace");
+      text.startsWith("can i replace") ||
+      text.startsWith("add ") ||
+      text.startsWith("can we add") ||
+      text.startsWith("can i add");
 
     if (hasHotword || isAwaitingQuestion || isExplicitCulinaryQuestion) {
       // Clean hotword from query
@@ -1136,15 +1210,30 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       >
         <div className="flex flex-wrap items-center gap-2">
           <div
-            className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg border ${
-              theme === 'light'
+            className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg border transition-all ${
+              isProcessingCommand || isThinking
+                ? theme === 'light'
+                  ? 'bg-amber-100 text-amber-950 border-amber-400 font-bold shadow-xs animate-pulse'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold shadow-xs animate-pulse'
+                : theme === 'light'
                 ? 'bg-white text-amber-900 border-amber-300/80 shadow-xs'
                 : 'bg-amber-950/60 text-amber-300 border-amber-500/30'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            {isProcessingCommand || isThinking ? (
+              <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            )}
             <span className="font-semibold">{voiceFeedback}</span>
           </div>
+
+          {(isProcessingCommand || isThinking) && (
+            <div className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1 animate-pulse">
+              <span>⏳ Chef busy responding — please wait a second</span>
+            </div>
+          )}
+
           {isAwaitingQuestion && (
             <div className="px-2 py-0.5 rounded-full bg-amber-500 text-stone-950 font-bold text-[10px] animate-pulse">
               TasteCraft listening... speak your question now!
