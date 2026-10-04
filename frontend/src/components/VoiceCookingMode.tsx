@@ -163,12 +163,27 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const isProcessingCommandRef = useRef(false);
 
-  const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, isSpeakingRef } = useSpeechSynthesis();
+  const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, prefetch, isSpeakingRef } = useSpeechSynthesis();
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
   const isThinkingRef = useRef(false);
   const isClosedRef = useRef(false);
   const responseCardRef = useRef<HTMLDivElement>(null);
+
+  const steps = currentRecipe.instructions || [];
+  const ingredients = currentRecipe.ingredients || [];
+
+  const stepsRef = useRef<string[]>(steps);
+  stepsRef.current = steps;
+  const ingredientsRef = useRef<typeof ingredients>(ingredients);
+  ingredientsRef.current = ingredients;
+
+  // Pre-fetch all recipe steps in the background so reading has ZERO lag!
+  useEffect(() => {
+    if (steps && steps.length > 0) {
+      prefetch(steps, 'en-US-AvaNeural', voiceSpeed);
+    }
+  }, [steps, voiceSpeed, prefetch]);
 
   // Auto-scroll when Chef responds or starts thinking
   useEffect(() => {
@@ -178,14 +193,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       }, 50);
     }
   }, [aiResponse, isThinking]);
-
-  const steps = currentRecipe.instructions || [];
-  const ingredients = currentRecipe.ingredients || [];
-
-  const stepsRef = useRef<string[]>(steps);
-  stepsRef.current = steps;
-  const ingredientsRef = useRef<typeof ingredients>(ingredients);
-  ingredientsRef.current = ingredients;
 
   // Cookware adaptive tips & sensorial cues - only show when relevant on step 1 (preheating/heating pan)
   const getCookwareGuidance = (stepText: string, stepIdx: number): { tip: string; cue: string } | null => {
@@ -370,15 +377,18 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
   const handleTogglePause = useCallback(() => {
     if (isPaused) {
-      resumeSpeaking();
       setIsPaused(false);
-      setVoiceFeedback('Resumed reading');
+      setVoiceFeedback('▶️ Resumed reading');
+      const resumed = resumeSpeaking();
+      if (!resumed) {
+        speakCurrentStep(currentStepRef.current);
+      }
     } else {
       pauseSpeaking();
       setIsPaused(true);
       setVoiceFeedback('⏸️ Paused');
     }
-  }, [isPaused, resumeSpeaking, pauseSpeaking]);
+  }, [isPaused, resumeSpeaking, pauseSpeaking, speakCurrentStep]);
 
   // Read all ingredients
   const speakIngredients = useCallback(() => {
@@ -668,6 +678,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const startCookingAtStep = useCallback((stepIdx: number) => {
     setHasStarted(true);
     setShowResumeModal(false);
+    setIsPaused(false);
     updateStep(stepIdx);
     setActiveSection('steps');
 
@@ -928,37 +939,55 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
 
     // 6. Stop speaking / pause
-    if (
+    const isPauseCommand =
       text === 'pause' ||
-      text === 'pause reading' ||
-      text === 'pause cooking' ||
       text === 'stop' ||
-      text === 'stop speaking' ||
       text === 'quiet' ||
       text === 'silence' ||
       text === 'hold on' ||
       text === 'wait' ||
-      text.includes('stop speaking')
-    ) {
+      text === 'mute' ||
+      text.includes('pause') ||
+      text.includes('stop speaking') ||
+      text.includes('stop talking') ||
+      text.includes('stop reading') ||
+      text.includes('be quiet') ||
+      text.includes('hold on') ||
+      text.endsWith('stop') ||
+      text.endsWith('pause');
+
+    if (isPauseCommand) {
       pauseSpeaking();
       setIsPaused(true);
       isProcessingCommandRef.current = false;
       setIsProcessingCommand(false);
+      isThinkingRef.current = false;
+      setIsThinking(false);
       setVoiceFeedback('⏸️ Paused speech');
       return;
     }
 
-    if (
+    const isResumeCommand =
       text === 'resume' ||
-      text === 'resume reading' ||
-      text === 'continue reading' ||
+      text === 'continue' ||
       text === 'play' ||
       text === 'unpause' ||
-      text === 'keep going'
-    ) {
-      resumeSpeaking();
+      text.includes('resume') ||
+      text.includes('continue reading') ||
+      text.includes('keep going') ||
+      text.includes('unpause') ||
+      text.endsWith('resume') ||
+      text.endsWith('continue');
+
+    if (isResumeCommand) {
       setIsPaused(false);
-      setVoiceFeedback('▶️ Resumed speech');
+      isProcessingCommandRef.current = false;
+      setIsProcessingCommand(false);
+      const resumed = resumeSpeaking();
+      if (!resumed) {
+        speakCurrentStep(currentStepRef.current);
+      }
+      setVoiceFeedback('▶️ Resumed reading');
       return;
     }
 
