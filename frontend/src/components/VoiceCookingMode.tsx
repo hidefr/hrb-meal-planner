@@ -163,7 +163,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const isProcessingCommandRef = useRef(false);
 
-  const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, prefetch, isSpeakingRef } = useSpeechSynthesis();
+  const { speak, stop: stopSpeaking, pause: pauseSpeaking, resume: resumeSpeaking, isSpeakingRef } = useSpeechSynthesis();
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
   const isThinkingRef = useRef(false);
@@ -177,13 +177,6 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   stepsRef.current = steps;
   const ingredientsRef = useRef<typeof ingredients>(ingredients);
   ingredientsRef.current = ingredients;
-
-  // Pre-fetch all recipe steps in the background so reading has ZERO lag!
-  useEffect(() => {
-    if (steps && steps.length > 0) {
-      prefetch(steps, 'en-US-AvaNeural', voiceSpeed);
-    }
-  }, [steps, voiceSpeed, prefetch]);
 
   // Auto-scroll when Chef responds or starts thinking
   useEffect(() => {
@@ -736,12 +729,14 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     // Capacity & Flow Guard: If Chef is already thinking, only allow emergency stops
     if (isProcessingCommandRef.current || isThinkingRef.current) {
       const isUrgentOverride =
-        text === 'stop' ||
-        text === 'pause' ||
+        text.includes('stop') ||
+        text.includes('pause') ||
+        text.includes('quiet') ||
+        text.includes('hold on') ||
         text.includes('panic') ||
         text.includes('smoke') ||
         text.includes('fire') ||
-        text === 'exit';
+        text.includes('exit');
 
       if (!isUrgentOverride) {
         console.log("Chef is currently busy processing; dropping extra command:", rawTranscript);
