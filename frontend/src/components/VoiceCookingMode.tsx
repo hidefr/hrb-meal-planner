@@ -130,6 +130,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   const isListeningRef = useRef(false);
   const isThinkingRef = useRef(false);
   const isClosedRef = useRef(false);
+  const responseCardRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll when Chef responds or starts thinking
+  useEffect(() => {
+    if (aiResponse || isThinking) {
+      setTimeout(() => {
+        responseCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  }, [aiResponse, isThinking]);
 
   const steps = recipe.instructions || [];
   const ingredients = recipe.ingredients || [];
@@ -442,6 +452,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'repeat step' ||
       text.includes('chef') ||
       text.includes('tastecraft') ||
+      text.includes('cookie') ||
+      text.startsWith('what if') ||
+      text.startsWith('can i substitute') ||
+      text.startsWith('what can i use') ||
+      text.startsWith('how long') ||
+      text.startsWith('how do i know') ||
       text.includes('smoke') ||
       text.includes('smoking') ||
       text.includes('burning') ||
@@ -585,21 +601,35 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 8. HOTWORD DETECTION FOR AI QUESTIONS:
-    // Only answer if the user uses the hotword: "tastecraft", "hey tastecraft", "chef", "hey chef"
-    // OR if they recently activated question mode.
+    // 8. HOTWORD & DIRECT QUESTION DETECTION FOR AI QUESTIONS:
+    // Wakes on "tastecraft", "hey tastecraft", "chef", "hey chef", "cookie",
+    // OR direct culinary questions like "what if...", "can I substitute...", "how do I know...", "how long...", "what can I use instead of..."
+    const isDirectQuestion =
+      text.startsWith('what if') ||
+      text.startsWith('can i substitute') ||
+      text.startsWith('can i replace') ||
+      text.startsWith('what can i substitute') ||
+      text.startsWith('what can i use') ||
+      text.startsWith('how do i know') ||
+      text.startsWith('how long') ||
+      text.startsWith('is it done') ||
+      text.startsWith('do i need to') ||
+      text.startsWith('should i') ||
+      text.endsWith('?');
+
     const hasHotword =
       text.includes('tastecraft') ||
       text.includes('taste craft') ||
       text.includes('hey tastecraft') ||
       text.includes('hey taste craft') ||
+      text.includes('hey chef') ||
       text.includes('chef') ||
-      text.includes('hey chef');
+      text.includes('cookie');
 
-    if (hasHotword || isAwaitingQuestion) {
+    if (hasHotword || isAwaitingQuestion || isDirectQuestion) {
       // Clean hotword from query
       let query = rawTranscript
-        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef)\b/gi, '')
+        .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef|cookie)\b/gi, '')
         .trim();
 
       if (!query || query.length < 3) {
@@ -610,12 +640,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
         awaitingQuestionTimerRef.current = setTimeout(() => {
           setIsAwaitingQuestion(false);
-          setVoiceFeedback('Say "Next step" or "TasteCraft [question]"');
+          setVoiceFeedback('Say "Next step" or "Chef [question]"');
         }, 8000);
         return;
       }
 
-      // Hotword accompanied by question, or followed up question!
+      // Hotword accompanied by question, or direct cooking question!
       setIsAwaitingQuestion(false);
       if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
       askCookingAssistant(query);
@@ -1149,6 +1179,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         {/* 💬 Conversational AI Response Card */}
         {(aiResponse || isThinking) && (
           <div
+            ref={responseCardRef}
             className={`mb-5 border-2 rounded-3xl p-5 sm:p-6 shadow-2xl animate-fadeIn shrink-0 transition-colors ${
               theme === 'light'
                 ? 'bg-white border-amber-400 text-stone-900 shadow-amber-900/10'
