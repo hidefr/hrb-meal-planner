@@ -369,6 +369,11 @@ export interface VoiceAskResult {
   ingredient_update?: IngredientAdaptation | null;
 }
 
+export interface VoiceConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export async function askVoiceAssistant(params: {
   query: string;
   recipe_title: string;
@@ -377,6 +382,7 @@ export async function askVoiceAssistant(params: {
   cookware?: string;
   ingredients?: string[];
   instructions?: string[];
+  history?: VoiceConversationTurn[];
 }): Promise<VoiceAskResult> {
   const res = await fetch(`${API_BASE}/voice/ask`, {
     method: 'POST',

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Recipe } from '../types';
 import { useSpeechSynthesis } from '../services/useSpeechSynthesis';
-import { askVoiceAssistant, sendChatMessage } from '../services/api';
+import { askVoiceAssistant, sendChatMessage, VoiceConversationTurn } from '../services/api';
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor } from '@capacitor/core';
@@ -146,6 +146,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
   // Hotword AI trigger state: when user says "Cookie", "Chef", or "Hey Chef", we await their question
   const [isAwaitingQuestion, setIsAwaitingQuestion] = useState(false);
   const awaitingQuestionTimerRef = useRef<any>(null);
+
+  // Multi-turn Conversational Memory for cooking session (e.g. asking substitute then saying "yes add that")
+  const [conversationHistory, setConversationHistory] = useState<VoiceConversationTurn[]>([]);
+  const conversationHistoryRef = useRef<VoiceConversationTurn[]>([]);
 
   // Busy/Processing state: prevents voice command overloading while Chef is calculating or responding
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
@@ -409,7 +413,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       const currentStepText = steps[currentStep] || "";
       const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`);
 
-      // Call dedicated ultra-fast voice endpoint
+      // Record user turn in conversation history
+      const currentHistory = [...conversationHistoryRef.current, { role: 'user' as const, content: query }];
+      conversationHistoryRef.current = currentHistory;
+      setConversationHistory(currentHistory);
+
+      // Call dedicated ultra-fast voice endpoint with multi-turn history
       const res = await askVoiceAssistant({
         query,
         recipe_title: currentRecipe.title,
@@ -418,11 +427,18 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         cookware,
         ingredients: ingList,
         instructions: steps,
+        history: currentHistory.slice(-8),
       });
 
       if (isClosedRef.current) return;
 
       const answer = res.reply.replace(/[*#_~`]/g, '').trim();
+      
+      // Record assistant turn in conversation history
+      const updatedHistory = [...conversationHistoryRef.current, { role: 'assistant' as const, content: answer }];
+      conversationHistoryRef.current = updatedHistory;
+      setConversationHistory(updatedHistory);
+
       setAiResponse(answer);
       setVoiceFeedback(`Chef: "${answer.slice(0, 30)}..."`);
 
@@ -431,15 +447,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         const { old_name, new_name, new_amount, new_unit, notes } = res.ingredient_update;
         
         setCurrentRecipe(prev => {
-          const oldLower = (old_name || '').toLowerCase().trim();
+          const oldClean = (old_name || '').toLowerCase().trim();
           let matched = false;
 
-          const updatedIngredients = (prev.ingredients || []).map(ing => {
-            const ingLower = ing.name.toLowerCase();
+          // 1. Try exact or substring match
+          let updatedIngredients = (prev.ingredients || []).map(ing => {
+            const ingLower = ing.name.toLowerCase().trim();
             if (
               !matched &&
-              oldLower &&
-              (ingLower.includes(oldLower) || oldLower.includes(ingLower))
+              oldClean &&
+              (ingLower === oldClean || ingLower.includes(oldClean) || oldClean.includes(ingLower))
             ) {
               matched = true;
               return {
@@ -453,19 +470,39 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             return ing;
           });
 
-          // If no existing ingredient was replaced, add the new ingredient!
+          // 2. Fallback word match if not matched yet (e.g. "honey" matches "clover honey" or "pure raw honey")
+          if (!matched && oldClean) {
+            const oldWords = oldClean.split(/\s+/).filter(w => w.length > 2);
+            updatedIngredients = (prev.ingredients || []).map(ing => {
+              const ingLower = ing.name.toLowerCase().trim();
+              if (!matched && oldWords.some(w => ingLower.includes(w))) {
+                matched = true;
+                return {
+                  ...ing,
+                  name: new_name,
+                  amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
+                  unit: new_unit || ing.unit,
+                  notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
+                };
+              }
+              return ing;
+            });
+          }
+
+          // 3. If no existing ingredient was replaced, add the new ingredient!
           if (!matched) {
             updatedIngredients.push({
               name: new_name,
               amount: new_amount || 1,
               unit: new_unit || 'item',
-              category: 'Produce',
+              category: 'Pantry',
               notes: notes || undefined
             });
           }
 
           // Also adapt recipe instructions if they mention the old ingredient
-          const oldRegex = old_name && old_name.trim() ? new RegExp(`\\b${old_name.trim()}\\b`, 'gi') : null;
+          const oldTarget = oldClean || (matched ? old_name : '');
+          const oldRegex = oldTarget && oldTarget.trim() ? new RegExp(`\\b${oldTarget.trim()}\\b`, 'gi') : null;
           const updatedInstructions = (prev.instructions || []).map(inst => {
             if (oldRegex && oldRegex.test(inst)) {
               return inst.replace(oldRegex, new_name);
@@ -593,6 +630,16 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith('what if') ||
       text.startsWith('can i substitute') ||
       text.startsWith('what can i use') ||
+      text.startsWith('can i replace') ||
+      text.startsWith('replace ') ||
+      text.startsWith('substitute ') ||
+      text.startsWith('swap ') ||
+      text.includes('replace') ||
+      text.includes('substitute') ||
+      text.startsWith('yes add') ||
+      text.startsWith('yes replace') ||
+      text.startsWith('yes use') ||
+      text.startsWith('add ') ||
       text.startsWith('how long') ||
       text.startsWith('how do i know') ||
       text.includes('smoke') ||
@@ -817,6 +864,13 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.startsWith("what can i substitute") ||
       text.startsWith("what can i use instead of") ||
       text.startsWith("can i replace") ||
+      text.startsWith("replace ") ||
+      text.startsWith("substitute ") ||
+      text.startsWith("swap ") ||
+      text.startsWith("yes add") ||
+      text.startsWith("yes replace") ||
+      text.startsWith("yes use") ||
+      text.startsWith("use ") ||
       text.startsWith("add ") ||
       text.startsWith("can we add") ||
       text.startsWith("can i add");
