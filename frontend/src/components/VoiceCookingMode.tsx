@@ -951,7 +951,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     requestScreenKeepAwake();
 
     if (steps.length > 0 && autoSpeak) {
-      speak(`Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}. Step 1: ${steps[0]}`);
+      // First deliver a brief natural greeting, then immediately start reading Step 1 with synchronized word highlighting!
+      const intro = `Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}.`;
+      speak(
+        intro,
+        () => setVoiceFeedback('Starting cooking mode...'),
+        () => {
+          if (!isClosedRef.current) {
+            speakCurrentStep(currentStep);
+          }
+        },
+        'en-US-AvaNeural',
+        voiceSpeed
+      );
     }
     startHandsFree();
 
