@@ -17,6 +17,9 @@ DEFAULT_VOICE = "en-US-AvaNeural" # Warm, natural, friendly chef voice
 # In-memory LRU-like audio cache for instantaneous, jitter-free playback
 _TTS_CACHE: dict[tuple[str, str, str], bytes] = {}
 
+import json
+from typing import Optional, List, Dict, Any
+
 class VoiceAskRequest(BaseModel):
     query: str
     recipe_title: str
@@ -24,33 +27,61 @@ class VoiceAskRequest(BaseModel):
     step_number: int = 1
     cookware: str = "stainless"
     ingredients: list[str] = []
+    instructions: list[str] = []
 
-@router.post("/ask")
+class IngredientUpdate(BaseModel):
+    old_name: str
+    new_name: str
+    new_amount: Optional[float] = None
+    new_unit: Optional[str] = None
+    notes: Optional[str] = None
+
+class VoiceAskResponse(BaseModel):
+    reply: str
+    ingredient_update: Optional[IngredientUpdate] = None
+    updated_instructions: Optional[List[str]] = None
+
+@router.post("/ask", response_model=VoiceAskResponse)
 async def voice_ask(req: VoiceAskRequest):
     """
     Ultra-fast, hands-free culinary advice tailored for quick voice response.
-    Returns 1-2 spoken sentences directly answerable in <500ms without tool-calling latency.
+    When user requests an ingredient substitute (e.g. "I don't have coconut milk"),
+    proposes the culinary substitute in 1-2 spoken sentences AND outputs an adaptation
+    JSON block so the frontend automatically updates the recipe cards and instructions in place!
     """
     clean_query = req.query.strip()
     if not clean_query:
-        return {"reply": "I'm listening. Ask me any question about your recipe or ingredients."}
+        return VoiceAskResponse(reply="I'm listening. Ask me any question about your recipe or ingredients.")
 
     client = AsyncOpenAI(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url
     )
 
-    ing_summary = ", ".join(req.ingredients[:15]) if req.ingredients else "Standard pantry"
+    ing_summary = ", ".join(req.ingredients[:20]) if req.ingredients else "Standard pantry"
 
     system_prompt = (
         "You are Chef, an instant real-time kitchen voice assistant for someone cooking at the stove. "
         f"They are cooking '{req.recipe_title}'. "
         f"Current step #{req.step_number}: '{req.current_step}'. "
         f"Cookware: {req.cookware}. "
-        f"Ingredients: {ing_summary}. "
-        "CRITICAL RULES: Answer immediately in 1 or 2 spoken sentences (maximum 35 words). "
-        "Never use markdown, lists, bullet points, asterisks, or temperatures. "
-        "Be direct, warm, empathetic, and spoken aloud. Example: 'You can substitute heavy cream with a splash of broth one-to-one, or use whole milk with a pat of butter.'"
+        f"Recipe ingredients: {ing_summary}. "
+        "CRITICAL RULES FOR SPOKEN REPLY: Answer in 1 or 2 warm spoken sentences (maximum 35 words). "
+        "Never use markdown formatting, bullet points, asterisks, or technical temperatures in the spoken response. "
+        "ADAPTATION RULE: If the user is asking to replace or substitute an ingredient they don't have (e.g., 'I don't have X, can we use Y?'), "
+        "provide your 1-2 spoken sentences first, followed by a JSON block formatted exactly like this:\n"
+        "```json\n"
+        "{\n"
+        '  "adaptation": {\n'
+        '    "old_name": "name of missing ingredient from recipe",\n'
+        '    "new_name": "name of proposed replacement ingredient",\n'
+        '    "new_amount": 1.0,\n'
+        '    "new_unit": "cup",\n'
+        '    "notes": "whisked in on low heat"\n'
+        "  }\n"
+        "}\n"
+        "```\n"
+        "If no ingredient is being replaced, do NOT output any JSON block."
     )
 
     try:
@@ -60,17 +91,44 @@ async def voice_ask(req: VoiceAskRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": clean_query}
             ],
-            max_tokens=300,
+            max_tokens=400,
             temperature=0.3
         )
         raw_reply = completion.choices[0].message.content or ""
-        clean_reply = raw_reply.replace("*", "").replace("#", "").replace("`", "").strip()
+        
+        spoken_reply = raw_reply
+        ingredient_update = None
+
+        if "```json" in raw_reply:
+            parts = raw_reply.split("```json")
+            spoken_reply = parts[0].strip()
+            json_text = parts[1].split("```")[0].strip()
+            try:
+                parsed = json.loads(json_text)
+                adapt = parsed.get("adaptation")
+                if adapt and isinstance(adapt, dict) and adapt.get("new_name"):
+                    ingredient_update = IngredientUpdate(
+                        old_name=str(adapt.get("old_name", "")),
+                        new_name=str(adapt.get("new_name", "")),
+                        new_amount=float(adapt["new_amount"]) if adapt.get("new_amount") is not None else None,
+                        new_unit=str(adapt.get("new_unit", "")) if adapt.get("new_unit") else None,
+                        notes=str(adapt.get("notes", "")) if adapt.get("notes") else None
+                    )
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse adaptation JSON: {parse_err}")
+
+        # Clean any remaining markdown artifacts from spoken text
+        clean_reply = spoken_reply.replace("*", "").replace("#", "").replace("`", "").strip()
         if not clean_reply:
             clean_reply = "I'm not sure about that substitution, but standard butter, oil, or cream usually work well in a pinch."
-        return {"reply": clean_reply}
+
+        return VoiceAskResponse(
+            reply=clean_reply,
+            ingredient_update=ingredient_update
+        )
     except Exception as e:
         logger.error(f"Voice ask error: {e}")
-        return {"reply": "I couldn't reach the culinary coach right now. Try asking again in a moment."}
+        return VoiceAskResponse(reply="I couldn't reach the culinary coach right now. Try asking again in a moment.")
 
 @router.get("/tts")
 async def text_to_speech(

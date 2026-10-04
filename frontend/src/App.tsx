@@ -521,6 +521,12 @@ export const App: React.FC = () => {
           recipe={cookingModeData.recipe}
           dayOfWeek={cookingModeData.day}
           onClose={() => handleSetCookingMode(null)}
+          onRecipeUpdated={(updatedRecipe) => {
+            // Update cookingModeData state so cooking mode stays completely in sync
+            setCookingModeData(prev => prev ? { ...prev, recipe: updatedRecipe } : null);
+            // Save updated recipe directly to the day slot in the meal plan and database
+            handleSaveManualMeal(cookingModeData.day, updatedRecipe);
+          }}
         />
       )}
 

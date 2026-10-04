@@ -356,6 +356,19 @@ export async function searchMediaForRecipe(recipeTitle: string, tags?: string[],
   return res.json();
 }
 
+export interface IngredientAdaptation {
+  old_name: string;
+  new_name: string;
+  new_amount?: number | null;
+  new_unit?: string | null;
+  notes?: string | null;
+}
+
+export interface VoiceAskResult {
+  reply: string;
+  ingredient_update?: IngredientAdaptation | null;
+}
+
 export async function askVoiceAssistant(params: {
   query: string;
   recipe_title: string;
@@ -363,7 +376,8 @@ export async function askVoiceAssistant(params: {
   step_number?: number;
   cookware?: string;
   ingredients?: string[];
-}): Promise<{ reply: string }> {
+  instructions?: string[];
+}): Promise<VoiceAskResult> {
   const res = await fetch(`${API_BASE}/voice/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

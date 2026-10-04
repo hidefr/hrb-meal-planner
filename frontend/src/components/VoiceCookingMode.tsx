@@ -17,17 +17,20 @@ interface VoiceCookingModeProps {
   dayOfWeek: string;
   onClose: () => void;
   onSwitchDay?: (day: string) => void;
+  onRecipeUpdated?: (updatedRecipe: Recipe) => void;
 }
 
 type CookwareType = 'stainless' | 'cast_iron' | 'nonstick' | 'sheet_pan';
 
 export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
-  recipe,
+  recipe: initialRecipe,
   dayOfWeek,
   onClose,
   onSwitchDay,
+  onRecipeUpdated,
 }) => {
-  const stepStorageKey = `tastecraft_cooking_step_${recipe.id || recipe.title}`;
+  const [currentRecipe, setCurrentRecipe] = useState<Recipe>(initialRecipe);
+  const stepStorageKey = `tastecraft_cooking_step_${currentRecipe.id || currentRecipe.title}`;
   const [currentStep, setCurrentStep] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(stepStorageKey);
@@ -141,8 +144,8 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     }
   }, [aiResponse, isThinking]);
 
-  const steps = recipe.instructions || [];
-  const ingredients = recipe.ingredients || [];
+  const steps = currentRecipe.instructions || [];
+  const ingredients = currentRecipe.ingredients || [];
 
   // Cookware adaptive tips & sensorial cues - only show when relevant on step 1 (preheating/heating pan)
   const getCookwareGuidance = (stepText: string, stepIdx: number): { tip: string; cue: string } | null => {
@@ -342,7 +345,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     setIsThinking(true);
 
     try {
-      const prompt = `[TASTECRAFT EMERGENCY PANIC RESCUE]: The cook is mid-recipe cooking "${recipe.title}" on ${cookware}. CURRENT STEP: "${steps[currentStep]}". THE COOK CRIED OUT IN PANIC: "${issuePhrase}". Give an immediate, calm, 2-sentence culinary rescue instruction right now: tell them what to pull off the burner or adjust, and how to save the dish. Do not lecture. Be the calm Gordon Ramsay / friendly coach.`;
+      const prompt = `[TASTECRAFT EMERGENCY PANIC RESCUE]: The cook is mid-recipe cooking "${currentRecipe.title}" on ${cookware}. CURRENT STEP: "${steps[currentStep]}". THE COOK CRIED OUT IN PANIC: "${issuePhrase}". Give an immediate, calm, 2-sentence culinary rescue instruction right now: tell them what to pull off the burner or adjust, and how to save the dish. Do not lecture. Be the calm Gordon Ramsay / friendly coach.`;
       
       const res = await sendChatMessage(prompt);
       const advice = res.reply.replace(/[*#_~`]/g, '').trim();
@@ -363,7 +366,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       });
       speak(fallback);
     }
-  }, [recipe.title, cookware, steps, currentStep, stopSpeaking, speak]);
+  }, [currentRecipe.title, cookware, steps, currentStep, stopSpeaking, speak]);
 
   // Query AI for cooking advice, ingredient substitutes, timer questions, or general recipe questions
   const askCookingAssistant = useCallback(async (query: string) => {
@@ -382,11 +385,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       // Call dedicated ultra-fast voice endpoint
       const res = await askVoiceAssistant({
         query,
-        recipe_title: recipe.title,
+        recipe_title: currentRecipe.title,
         current_step: currentStepText,
         step_number: currentStep + 1,
         cookware,
         ingredients: ingList,
+        instructions: steps,
       });
 
       if (isClosedRef.current) return;
@@ -394,6 +398,72 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       const answer = res.reply.replace(/[*#_~`]/g, '').trim();
       setAiResponse(answer);
       setVoiceFeedback(`Chef: "${answer.slice(0, 30)}..."`);
+
+      // 🌟 AUTOMATIC ON-THE-FLY INGREDIENT & RECIPE ADAPTATION
+      if (res.ingredient_update && res.ingredient_update.new_name) {
+        const { old_name, new_name, new_amount, new_unit, notes } = res.ingredient_update;
+        
+        setCurrentRecipe(prev => {
+          const oldLower = (old_name || '').toLowerCase().trim();
+          let matched = false;
+
+          const updatedIngredients = (prev.ingredients || []).map(ing => {
+            const ingLower = ing.name.toLowerCase();
+            if (
+              !matched &&
+              (ingLower.includes(oldLower) || (oldLower && oldLower.includes(ingLower)))
+            ) {
+              matched = true;
+              return {
+                ...ing,
+                name: new_name,
+                amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
+                unit: new_unit || ing.unit,
+                notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
+              };
+            }
+            return ing;
+          });
+
+          // If no direct substring match was found, replace or append seamlessly
+          if (!matched && old_name) {
+            updatedIngredients.push({
+              name: new_name,
+              amount: new_amount || 1,
+              unit: new_unit || 'item',
+              category: 'Pantry',
+              notes: notes ? `${notes} (substituted for ${old_name})` : `substituted for ${old_name}`
+            });
+          }
+
+          // Also adapt recipe instructions if they mention the old ingredient
+          const oldRegex = old_name ? new RegExp(`\\b${old_name}\\b`, 'gi') : null;
+          const updatedInstructions = (prev.instructions || []).map(inst => {
+            if (oldRegex && oldRegex.test(inst)) {
+              return inst.replace(oldRegex, new_name);
+            }
+            return inst;
+          });
+
+          const adaptedRecipe: Recipe = {
+            ...prev,
+            ingredients: updatedIngredients,
+            instructions: updatedInstructions,
+          };
+
+          // Propagate adapted recipe to parent so whole meal plan updates persistently
+          if (onRecipeUpdated) {
+            try {
+              onRecipeUpdated(adaptedRecipe);
+            } catch (e) {
+              console.warn("Failed to propagate updated recipe:", e);
+            }
+          }
+
+          return adaptedRecipe;
+        });
+      }
+
       if (autoSpeak) {
         speak(answer, undefined, undefined, 'en-US-AvaNeural', voiceSpeed);
       }
@@ -403,7 +473,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       try {
         const currentStepText = steps[currentStep] || "None";
         const ingList = ingredients.map(i => `${i.amount} ${i.unit} ${i.name}`).join(', ');
-        const prompt = `[CONTEXT: The user is cooking "${recipe.title}". Step #${currentStep + 1}: "${currentStepText}". Cookware: ${cookware}. Ingredients: ${ingList}]. USER ASKS VIA VOICE: "${query}". Answer in 1 to 2 short sentences.`;
+        const prompt = `[CONTEXT: The user is cooking "${currentRecipe.title}". Step #${currentStep + 1}: "${currentStepText}". Cookware: ${cookware}. Ingredients: ${ingList}]. USER ASKS VIA VOICE: "${query}". Answer in 1 to 2 short sentences.`;
         const res = await sendChatMessage(prompt);
         if (isClosedRef.current) return;
         const answer = res.reply.replace(/[*#_~`]/g, '').trim();
@@ -425,7 +495,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       isThinkingRef.current = false;
       setIsThinking(false);
     }
-  }, [recipe.title, currentStep, steps, ingredients, autoSpeak, speak, cookware, stopSpeaking, voiceSpeed]);
+  }, [currentRecipe.title, currentStep, steps, ingredients, autoSpeak, speak, cookware, stopSpeaking, voiceSpeed, onRecipeUpdated]);
 
   // Handle Selective Voice Commands & Hotword-triggered AI Questions
   const handleVoiceCommand = useCallback((rawTranscript: string) => {
@@ -601,32 +671,35 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       return;
     }
 
-    // 8. HOTWORD & DIRECT QUESTION DETECTION FOR AI QUESTIONS:
-    // Wakes on "tastecraft", "hey tastecraft", "chef", "hey chef", "cookie",
-    // OR direct culinary questions like "what if...", "can I substitute...", "how do I know...", "how long...", "what can I use instead of..."
-    const isDirectQuestion =
-      text.startsWith('what if') ||
-      text.startsWith('can i substitute') ||
-      text.startsWith('can i replace') ||
-      text.startsWith('what can i substitute') ||
-      text.startsWith('what can i use') ||
-      text.startsWith('how do i know') ||
-      text.startsWith('how long') ||
-      text.startsWith('is it done') ||
-      text.startsWith('do i need to') ||
-      text.startsWith('should i') ||
-      text.endsWith('?');
-
+    // 8. HOTWORD & TARGETED COOKING QUESTION DETECTION FOR AI CULINARY COACH:
+    // To prevent ambient living room speech from accidentally triggering the chef,
+    // we require either:
+    // a) An explicit wake word ("Chef", "Hey Chef", "TasteCraft", "Hey TasteCraft", "Cookie")
+    // b) An active follow-up window after wake-word was primed (isAwaitingQuestion)
+    // c) An unmistakable direct culinary inquiry starting specifically with cooking substitution triggers
     const hasHotword =
+      text.includes('hey chef') ||
+      text.includes('chef') ||
       text.includes('tastecraft') ||
       text.includes('taste craft') ||
       text.includes('hey tastecraft') ||
       text.includes('hey taste craft') ||
-      text.includes('hey chef') ||
-      text.includes('chef') ||
       text.includes('cookie');
 
-    if (hasHotword || isAwaitingQuestion || isDirectQuestion) {
+    // Narrow, unambiguous culinary question openers (cannot be confused with casual banter)
+    const isExplicitCulinaryQuestion =
+      text.startsWith("i don't have") ||
+      text.startsWith("i dont have") ||
+      text.startsWith("we don't have") ||
+      text.startsWith("we dont have") ||
+      text.startsWith("what if i don't have") ||
+      text.startsWith("what if i dont have") ||
+      text.startsWith("can i substitute") ||
+      text.startsWith("what can i substitute") ||
+      text.startsWith("what can i use instead of") ||
+      text.startsWith("can i replace");
+
+    if (hasHotword || isAwaitingQuestion || isExplicitCulinaryQuestion) {
       // Clean hotword from query
       let query = rawTranscript
         .replace(/\b(hey\s+tastecraft|hey\s+taste\s+craft|tastecraft|taste\s+craft|hey\s+chef|chef|cookie)\b/gi, '')
@@ -640,12 +713,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
         awaitingQuestionTimerRef.current = setTimeout(() => {
           setIsAwaitingQuestion(false);
-          setVoiceFeedback('Say "Next step" or "Chef [question]"');
+          setVoiceFeedback('Say "Next step" or "Hey Chef [question]"');
         }, 8000);
         return;
       }
 
-      // Hotword accompanied by question, or direct cooking question!
+      // Hotword accompanied by question, or explicit substitution question!
       setIsAwaitingQuestion(false);
       if (awaitingQuestionTimerRef.current) clearTimeout(awaitingQuestionTimerRef.current);
       askCookingAssistant(query);
@@ -804,7 +877,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     requestScreenKeepAwake();
 
     if (steps.length > 0 && autoSpeak) {
-      speak(`Cooking mode for ${recipe.title}. Cookware set to ${cookware.replace('_', ' ')}. Step 1: ${steps[0]}`);
+      speak(`Cooking mode for ${currentRecipe.title}. Cookware set to ${cookware.replace('_', ' ')}. Step 1: ${steps[0]}`);
     }
     startHandsFree();
 
@@ -873,7 +946,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                   theme === 'light' ? 'text-[#7D6B58]' : 'text-stone-400'
                 }`}
               >
-                Prep: {recipe.prep_time_mins}m • Cook: {recipe.cook_time_mins}m
+                Prep: {currentRecipe.prep_time_mins}m • Cook: {currentRecipe.cook_time_mins}m
               </span>
             </div>
             <h1
@@ -881,7 +954,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 theme === 'light' ? 'text-[#2C2117]' : 'text-white'
               }`}
             >
-              {recipe.title}
+              {currentRecipe.title}
             </h1>
           </div>
         </div>
@@ -1371,7 +1444,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 }`}
               >
                 <List className="w-5 h-5 text-amber-500" />
-                <span>Ingredients for {recipe.title}</span>
+                <span>Ingredients for {currentRecipe.title}</span>
               </h2>
               <button
                 onClick={() => {
