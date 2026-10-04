@@ -44,6 +44,7 @@ class IngredientUpdate(BaseModel):
 class VoiceAskResponse(BaseModel):
     reply: str
     ingredient_update: Optional[IngredientUpdate] = None
+    ingredient_updates: Optional[List[IngredientUpdate]] = None
     updated_instructions: Optional[List[str]] = None
 
 @router.post("/ask", response_model=VoiceAskResponse)
@@ -54,6 +55,7 @@ async def voice_ask(req: VoiceAskRequest):
     "What can I replace honey with?" -> "You can use maple syrup" -> "Yes, add the maple syrup".
     When an ingredient substitute or addition is confirmed or requested, returns an adaptation
     JSON block so the frontend automatically updates the recipe cards and instructions in place!
+    Supports multiple simultaneous additions/substitutions (e.g. adding paprika, garlic powder, onion powder).
     """
     clean_query = req.query.strip()
     if not clean_query:
@@ -75,20 +77,18 @@ async def voice_ask(req: VoiceAskRequest):
         "CRITICAL RULES FOR SPOKEN REPLY:\n"
         "1. Answer in 1 or 2 warm, clear spoken sentences (maximum 35 words).\n"
         "2. Never use markdown formatting, bullet points, asterisks, or technical temperatures in the spoken response.\n"
-        "3. EXPLICIT SPOKEN CONFIRMATION OF SUBSTITUTIONS:\n"
-        "Whenever the user asks to substitute, replace, or add an ingredient (or confirms a suggestion), your spoken sentence MUST clearly and explicitly announce the substitution out loud! For example: 'Got it, I have substituted honey with maple syrup in your recipe!' or 'Sure, I added broccoli to your ingredients list.' Never stay silent or give an ambiguous response without stating what changed.\n"
+        "3. EXPLICIT SPOKEN CONFIRMATION OF SUBSTITUTIONS & ADDITIONS:\n"
+        "Whenever the user asks to substitute, replace, or add an ingredient (or confirms previous suggestions like spices/rubs), your spoken sentence MUST clearly and explicitly announce all changes out loud! For example: 'Got it, I have added paprika, garlic powder, and onion powder to your recipe cards!' or 'Sure, I swapped honey with maple syrup.' Never stay silent or omit items you suggested.\n"
         "4. CONVERSATIONAL CONTEXT: You maintain context with the cook across earlier turns in this session. "
-        "For example, if you previously recommended maple syrup as a substitute for honey, and the user now says 'Yes, add the maple syrup' "
-        "or 'Replace honey with maple syrup' or 'Go ahead and use maple syrup', you MUST recognize that they are confirming the replacement of honey with maple syrup!\n\n"
+        "For example, if you previously recommended paprika, garlic powder, and onion powder, and the user now says 'adjust the recipe to add your suggestions' or 'yes add those', you MUST recognize that they are confirming ALL of those items!\n\n"
         "5. ADAPTATION RULE:\n"
-        "Whenever the user asks to add an ingredient, substitute/replace an ingredient, OR confirms a previously discussed substitute "
-        "(e.g. 'add maple syrup', 'replace honey with maple syrup', 'yes do that', 'can we use maple syrup instead', 'let's use that', 'substitute honey with maple syrup'), "
+        "Whenever the user asks to add an ingredient, substitute/replace an ingredient, OR confirms previously discussed suggestions, "
         "you MUST trigger the ingredient update for the recipe cards!\n"
-        "Provide your warm 1-2 spoken sentences first, followed by a separate line starting with ADAPTATION: like this:\n"
-        'ADAPTATION: {"action": "replace", "old_name": "honey", "new_name": "maple syrup", "new_amount": 1.0, "new_unit": "tbsp", "notes": "whisk in"}\n'
-        "or for additions:\n"
-        'ADAPTATION: {"action": "add", "old_name": "", "new_name": "broccoli", "new_amount": 1.0, "new_unit": "cup", "notes": "cut into florets"}\n'
-        "Always infer the closest matched existing ingredient for 'old_name' from the current ingredients or prior conversation.\n"
+        "Provide your warm 1-2 spoken sentences first, followed by a separate line starting with ADAPTATION: with a JSON list (or single object) like this:\n"
+        'ADAPTATION: [{"action": "add", "old_name": "", "new_name": "paprika", "new_amount": 1.0, "new_unit": "tsp", "notes": "for the rub"}, {"action": "add", "old_name": "", "new_name": "garlic powder", "new_amount": 1.0, "new_unit": "tsp", "notes": "for the rub"}, {"action": "add", "old_name": "", "new_name": "onion powder", "new_amount": 1.0, "new_unit": "tsp", "notes": "for the rub"}]\n'
+        "or for a single replacement:\n"
+        'ADAPTATION: [{"action": "replace", "old_name": "honey", "new_name": "maple syrup", "new_amount": 1.0, "new_unit": "tbsp", "notes": "whisk in"}]\n'
+        "Always include ALL confirmed ingredients in the ADAPTATION list.\n"
         "If no ingredient change is being made or confirmed, do NOT output any ADAPTATION line."
     )
 
@@ -112,13 +112,35 @@ async def voice_ask(req: VoiceAskRequest):
         raw_reply = completion.choices[0].message.content or ""
         
         spoken_reply = raw_reply
-        ingredient_update = None
+        ingredient_updates: list[IngredientUpdate] = []
+
+        def parse_raw_adapt_data(data: Any) -> list[IngredientUpdate]:
+            res: list[IngredientUpdate] = []
+            if not data:
+                return res
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                # Unpack potential nested adaptation wrapper
+                obj = item.get("adaptation") if isinstance(item.get("adaptation"), dict) else item
+                if obj.get("new_name"):
+                    try:
+                        res.append(IngredientUpdate(
+                            old_name=str(obj.get("old_name", "")),
+                            new_name=str(obj.get("new_name", "")),
+                            new_amount=float(obj["new_amount"]) if obj.get("new_amount") is not None else None,
+                            new_unit=str(obj.get("new_unit", "")) if obj.get("new_unit") else None,
+                            notes=str(obj.get("notes", "")) if obj.get("notes") else None
+                        ))
+                    except Exception as e:
+                        logger.warning(f"Failed to cast IngredientUpdate: {e}")
+            return res
 
         # Check for ADAPTATION: line or ```json block
         if "ADAPTATION:" in raw_reply:
             parts = raw_reply.split("ADAPTATION:")
             spoken_reply = parts[0].strip()
-            # Find the JSON part
             json_str = parts[1].strip()
             if "\n" in json_str:
                 json_candidate = json_str.split("\n")[0].strip()
@@ -126,15 +148,7 @@ async def voice_ask(req: VoiceAskRequest):
                 json_candidate = json_str.strip()
             try:
                 parsed = json.loads(json_candidate)
-                adapt = parsed.get("adaptation") if isinstance(parsed, dict) and "adaptation" in parsed else parsed
-                if adapt and isinstance(adapt, dict) and adapt.get("new_name"):
-                    ingredient_update = IngredientUpdate(
-                        old_name=str(adapt.get("old_name", "")),
-                        new_name=str(adapt.get("new_name", "")),
-                        new_amount=float(adapt["new_amount"]) if adapt.get("new_amount") is not None else None,
-                        new_unit=str(adapt.get("new_unit", "")) if adapt.get("new_unit") else None,
-                        notes=str(adapt.get("notes", "")) if adapt.get("notes") else None
-                    )
+                ingredient_updates = parse_raw_adapt_data(parsed)
             except Exception as parse_err:
                 logger.warning(f"Failed to parse ADAPTATION line: {parse_err}. Raw line was: {json_str[:150]}")
         elif "```json" in raw_reply:
@@ -143,15 +157,7 @@ async def voice_ask(req: VoiceAskRequest):
             json_text = parts[1].split("```")[0].strip()
             try:
                 parsed = json.loads(json_text)
-                adapt = parsed.get("adaptation") if isinstance(parsed, dict) and "adaptation" in parsed else parsed
-                if adapt and isinstance(adapt, dict) and adapt.get("new_name"):
-                    ingredient_update = IngredientUpdate(
-                        old_name=str(adapt.get("old_name", "")),
-                        new_name=str(adapt.get("new_name", "")),
-                        new_amount=float(adapt["new_amount"]) if adapt.get("new_amount") is not None else None,
-                        new_unit=str(adapt.get("new_unit", "")) if adapt.get("new_unit") else None,
-                        notes=str(adapt.get("notes", "")) if adapt.get("notes") else None
-                    )
+                ingredient_updates = parse_raw_adapt_data(parsed)
             except Exception as parse_err:
                 logger.warning(f"Failed to parse adaptation JSON: {parse_err}")
 
@@ -160,9 +166,12 @@ async def voice_ask(req: VoiceAskRequest):
         if not clean_reply:
             clean_reply = "I've updated that for your recipe! Let's keep cooking."
 
+        first_update = ingredient_updates[0] if ingredient_updates else None
+
         return VoiceAskResponse(
             reply=clean_reply,
-            ingredient_update=ingredient_update
+            ingredient_update=first_update,
+            ingredient_updates=ingredient_updates if ingredient_updates else None
         )
     except Exception as e:
         logger.error(f"Voice ask error: {e}")

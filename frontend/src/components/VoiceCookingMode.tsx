@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Recipe } from '../types';
 import { useSpeechSynthesis } from '../services/useSpeechSynthesis';
-import { askVoiceAssistant, sendChatMessage, VoiceConversationTurn } from '../services/api';
+import { askVoiceAssistant, sendChatMessage, VoiceConversationTurn, IngredientAdaptation } from '../services/api';
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor } from '@capacitor/core';
@@ -63,15 +63,19 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     return 0;
   });
 
-  const updateStep = (newStep: number | ((prev: number) => number)) => {
+  const currentStepRef = useRef<number>(currentStep);
+  currentStepRef.current = currentStep;
+
+  const updateStep = useCallback((newStep: number | ((prev: number) => number)) => {
     setCurrentStep(prev => {
       const resolved = typeof newStep === 'function' ? newStep(prev) : newStep;
+      currentStepRef.current = resolved;
       try {
         localStorage.setItem(stepStorageKey, String(resolved));
       } catch {}
       return resolved;
     });
-  };
+  }, [stepStorageKey]);
 
   // Cookware selection
   const [cookware, setCookware] = useState<CookwareType>(() => {
@@ -174,6 +178,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
   const steps = currentRecipe.instructions || [];
   const ingredients = currentRecipe.ingredients || [];
+
+  const stepsRef = useRef<string[]>(steps);
+  stepsRef.current = steps;
+  const ingredientsRef = useRef<typeof ingredients>(ingredients);
+  ingredientsRef.current = ingredients;
 
   // Cookware adaptive tips & sensorial cues - only show when relevant on step 1 (preheating/heating pan)
   const getCookwareGuidance = (stepText: string, stepIdx: number): { tip: string; cue: string } | null => {
@@ -297,9 +306,12 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
   // Read current step aloud with sensorial guidance & word-by-word tracking
   const speakCurrentStep = useCallback((stepIdx: number) => {
-    if (stepIdx < 0 || stepIdx >= steps.length || isClosedRef.current) return;
-    const stepText = steps[stepIdx];
-    setVoiceFeedback(`Step ${stepIdx + 1} of ${steps.length}`);
+    const currentSteps = stepsRef.current || [];
+    if (!currentSteps.length || stepIdx < 0 || stepIdx >= currentSteps.length || isClosedRef.current) return;
+    const stepText = currentSteps[stepIdx] || '';
+    if (!stepText.trim()) return;
+
+    setVoiceFeedback(`Step ${stepIdx + 1} of ${currentSteps.length}`);
     setAiResponse(null);
     setPanicRescue(null);
     setSpeechProgress(0);
@@ -334,7 +346,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         }
       );
     }
-  }, [steps, autoSpeak, speak, voiceSpeed]);
+  }, [autoSpeak, speak, voiceSpeed]);
 
   const handleTogglePause = useCallback(() => {
     if (isPaused) {
@@ -445,48 +457,44 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
 
       // 🌟 AUTOMATIC ON-THE-FLY INGREDIENT & RECIPE ADAPTATION
       let spokenAnswer = answer;
-      if (res.ingredient_update && res.ingredient_update.new_name) {
-        const { old_name, new_name, new_amount, new_unit, notes } = res.ingredient_update;
-        
-        // Ensure the spoken response clearly mentions what was substituted if the answer didn't already
+      const updatesToApply: IngredientAdaptation[] = [];
+      if (res.ingredient_updates && Array.isArray(res.ingredient_updates) && res.ingredient_updates.length > 0) {
+        updatesToApply.push(...res.ingredient_updates.filter(u => u && u.new_name));
+      } else if (res.ingredient_update && res.ingredient_update.new_name) {
+        updatesToApply.push(res.ingredient_update);
+      }
+
+      if (updatesToApply.length > 0) {
+        const itemNames = updatesToApply.map(u => u.new_name).filter(Boolean);
         const lowerAnswer = answer.toLowerCase();
-        const lowerNew = new_name.toLowerCase();
-        if (!lowerAnswer.includes(lowerNew) && !lowerAnswer.includes('substitute') && !lowerAnswer.includes('replace') && !lowerAnswer.includes('added')) {
-          spokenAnswer = old_name
-            ? `Substituted ${old_name} with ${new_name} in your recipe cards. ${answer}`
-            : `Added ${new_name} to your recipe cards. ${answer}`;
+        
+        // Ensure spoken response announces all items if the LLM's answer omitted them
+        const hasAnnounced = itemNames.some(n => lowerAnswer.includes(n.toLowerCase())) ||
+          lowerAnswer.includes('substitute') || lowerAnswer.includes('replace') || lowerAnswer.includes('added');
+        if (!hasAnnounced) {
+          const namesStr = itemNames.join(', ');
+          spokenAnswer = `Updated your recipe cards with ${namesStr}. ${answer}`;
         }
 
         setCurrentRecipe(prev => {
-          const oldClean = (old_name || '').toLowerCase().trim();
-          let matched = false;
+          let updatedIngredients = [...(prev.ingredients || [])];
+          let updatedInstructions = [...(prev.instructions || [])];
 
-          // 1. Try exact or substring match
-          let updatedIngredients = (prev.ingredients || []).map(ing => {
-            const ingLower = ing.name.toLowerCase().trim();
-            if (
-              !matched &&
-              oldClean &&
-              (ingLower === oldClean || ingLower.includes(oldClean) || oldClean.includes(ingLower))
-            ) {
-              matched = true;
-              return {
-                ...ing,
-                name: new_name,
-                amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
-                unit: new_unit || ing.unit,
-                notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
-              };
-            }
-            return ing;
-          });
+          for (const update of updatesToApply) {
+            const { old_name, new_name, new_amount, new_unit, notes } = update;
+            if (!new_name) continue;
 
-          // 2. Fallback word match if not matched yet (e.g. "honey" matches "clover honey" or "pure raw honey")
-          if (!matched && oldClean) {
-            const oldWords = oldClean.split(/\s+/).filter(w => w.length > 2);
-            updatedIngredients = (prev.ingredients || []).map(ing => {
-              const ingLower = ing.name.toLowerCase().trim();
-              if (!matched && oldWords.some(w => ingLower.includes(w))) {
+            const oldClean = (old_name || '').toLowerCase().trim();
+            let matched = false;
+
+            // 1. Try exact or substring match
+            updatedIngredients = updatedIngredients.map(ing => {
+              const ingLower = (ing.name || '').toLowerCase().trim();
+              if (
+                !matched &&
+                oldClean &&
+                (ingLower === oldClean || ingLower.includes(oldClean) || oldClean.includes(ingLower))
+              ) {
                 matched = true;
                 return {
                   ...ing,
@@ -498,28 +506,53 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               }
               return ing;
             });
-          }
 
-          // 3. If no existing ingredient was replaced, add the new ingredient!
-          if (!matched) {
-            updatedIngredients.push({
-              name: new_name,
-              amount: new_amount || 1,
-              unit: new_unit || 'item',
-              category: 'Pantry',
-              notes: notes || undefined
-            });
-          }
-
-          // Also adapt recipe instructions if they mention the old ingredient
-          const oldTarget = oldClean || (matched ? old_name : '');
-          const oldRegex = oldTarget && oldTarget.trim() ? new RegExp(`\\b${oldTarget.trim()}\\b`, 'gi') : null;
-          const updatedInstructions = (prev.instructions || []).map(inst => {
-            if (oldRegex && oldRegex.test(inst)) {
-              return inst.replace(oldRegex, new_name);
+            // 2. Fallback word match if not matched yet
+            if (!matched && oldClean) {
+              const oldWords = oldClean.split(/\s+/).filter(w => w.length > 2);
+              updatedIngredients = updatedIngredients.map(ing => {
+                const ingLower = (ing.name || '').toLowerCase().trim();
+                if (!matched && oldWords.some(w => ingLower.includes(w))) {
+                  matched = true;
+                  return {
+                    ...ing,
+                    name: new_name,
+                    amount: new_amount !== null && new_amount !== undefined ? new_amount : ing.amount,
+                    unit: new_unit || ing.unit,
+                    notes: notes ? `${notes} (substituted for ${ing.name})` : (ing.notes || `substituted for ${ing.name}`)
+                  };
+                }
+                return ing;
+              });
             }
-            return inst;
-          });
+
+            // 3. If no existing ingredient was replaced, add the new ingredient (e.g. added rub spices)
+            if (!matched) {
+              const alreadyExists = updatedIngredients.some(ing => (ing.name || '').toLowerCase().trim() === new_name.toLowerCase().trim());
+              if (!alreadyExists) {
+                updatedIngredients.push({
+                  name: new_name,
+                  amount: new_amount !== null && new_amount !== undefined ? new_amount : 1,
+                  unit: new_unit || 'tsp',
+                  category: 'Pantry',
+                  notes: notes || undefined
+                });
+              }
+            }
+
+            // Also adapt recipe instructions if they mention the old ingredient
+            if (oldClean) {
+              try {
+                const escapedOld = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const oldRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
+                updatedInstructions = updatedInstructions.map(inst => {
+                  return typeof inst === 'string' && oldRegex.test(inst) ? inst.replace(oldRegex, new_name) : inst;
+                });
+              } catch (e) {
+                console.warn("Regex adaptation failed for", oldClean, e);
+              }
+            }
+          }
 
           const adaptedRecipe: Recipe = {
             ...prev,
@@ -527,7 +560,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
             instructions: updatedInstructions,
           };
 
-          // Propagate adapted recipe to parent so whole meal plan updates persistently
+          // Propagate adapted recipe safely to parent so whole meal plan updates persistently
           if (onRecipeUpdated) {
             try {
               onRecipeUpdated(adaptedRecipe);
@@ -748,16 +781,18 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text.endsWith('next step') ||
       text.startsWith('next step')
     ) {
+      const curSteps = stepsRef.current || [];
+      const cur = currentStepRef.current;
       if (!hasStarted) {
-        startCookingAtStep(currentStep);
+        startCookingAtStep(cur);
         return;
       }
       setActiveSection('steps');
-      updateStep(prev => {
-        const next = Math.min(steps.length - 1, prev + 1);
+      if (curSteps.length > 0) {
+        const next = Math.min(curSteps.length - 1, cur + 1);
+        updateStep(next);
         speakCurrentStep(next);
-        return next;
-      });
+      }
       return;
     }
 
@@ -769,12 +804,11 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'last step' ||
       text.endsWith('previous step')
     ) {
+      const cur = currentStepRef.current;
       setActiveSection('steps');
-      updateStep(prev => {
-        const back = Math.max(0, prev - 1);
-        speakCurrentStep(back);
-        return back;
-      });
+      const back = Math.max(0, cur - 1);
+      updateStep(back);
+      speakCurrentStep(back);
       return;
     }
 
@@ -790,7 +824,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
       text === 'what step'
     ) {
       setActiveSection('steps');
-      speakCurrentStep(currentStep);
+      speakCurrentStep(currentStepRef.current);
       return;
     }
 
@@ -808,8 +842,9 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
     // 5. Jump to specific step (e.g., "step 3", "step 2", "go to step 4")
     const stepMatch = text.match(/(?:step|go to step|number)\s*(\d+)/i);
     if (stepMatch && stepMatch[1]) {
+      const curSteps = stepsRef.current || [];
       const targetStep = parseInt(stepMatch[1], 10) - 1;
-      if (targetStep >= 0 && targetStep < steps.length) {
+      if (targetStep >= 0 && targetStep < curSteps.length) {
         setActiveSection('steps');
         updateStep(targetStep);
         speakCurrentStep(targetStep);
@@ -1743,7 +1778,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
                 <button
                   key={idx}
                   onClick={() => {
-                    setCurrentStep(idx);
+                    updateStep(idx);
                     speakCurrentStep(idx);
                   }}
                   className={`w-9 h-9 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -1821,11 +1856,10 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
           type="button"
           onClick={() => {
             setActiveSection('steps');
-            updateStep(prev => {
-              const back = Math.max(0, prev - 1);
-              speakCurrentStep(back);
-              return back;
-            });
+            const cur = currentStepRef.current;
+            const back = Math.max(0, cur - 1);
+            updateStep(back);
+            speakCurrentStep(back);
           }}
           disabled={currentStep === 0 && activeSection === 'steps'}
           className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 landscape:py-1.5 landscape:px-3 rounded-xl sm:rounded-2xl disabled:opacity-30 text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
@@ -1861,7 +1895,7 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
               if (activeSection === 'ingredients') {
                 speakIngredients();
               } else {
-                speakCurrentStep(currentStep);
+                speakCurrentStep(currentStepRef.current);
               }
             }}
             className={`px-3 sm:px-6 md:px-8 py-3 sm:py-4 landscape:py-1.5 landscape:px-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm md:text-base font-bold flex items-center gap-1.5 sm:gap-2 transition cursor-pointer border shadow-md shrink-0 ${
@@ -1879,18 +1913,18 @@ export const VoiceCookingMode: React.FC<VoiceCookingModeProps> = ({
         <button
           type="button"
           onClick={() => {
+            const curSteps = stepsRef.current || [];
+            const cur = currentStepRef.current;
             if (!hasStarted) {
-              startCookingAtStep(currentStep);
+              startCookingAtStep(cur);
             } else if (activeSection === 'ingredients') {
               setActiveSection('steps');
               updateStep(0);
               speakCurrentStep(0);
-            } else if (currentStep < steps.length - 1) {
-              updateStep(prev => {
-                const next = prev + 1;
-                speakCurrentStep(next);
-                return next;
-              });
+            } else if (cur < curSteps.length - 1) {
+              const next = cur + 1;
+              updateStep(next);
+              speakCurrentStep(next);
             } else {
               handleExitCooking();
             }
