@@ -207,14 +207,90 @@ export const UserGuideView: React.FC = () => {
             <div className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-xl border border-amber-500/30">
               <Mic className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <strong className="text-amber-300 text-xs block font-bold">Hands-Free Voice Cooking Mode:</strong>
+                <strong className="text-amber-300 text-xs block font-bold">Personal Chef Voice Cooking Mode (Hands-Free):</strong>
                 <span className="text-xs text-amber-200 leading-relaxed block mt-0.5">
-                  Tap <strong>"🎙️ Cook"</strong> on any meal card or <strong>"Start Cooking Mode"</strong> in the recipe dialog. The app enters a full-screen, high-contrast kitchen view with voice commands. It reads steps aloud and lets you navigate completely hands-free with your voice:
+                  Tap <strong>"🎙️ Cook"</strong> on any meal card or <strong>"Start Cooking Mode"</strong> in the recipe dialog. Your tablet or phone turns into an always-on kitchen assistant with real-time text-to-speech, interactive word highlighting, cookware heat coaching, panic rescue, and on-the-fly recipe adaptation:
                 </span>
-                <span className="text-[11px] text-amber-400 font-mono mt-1 block">
-                  Commands: "Next", "Back", "Repeat step", "Pause", "Read ingredients", "Step 3", "Exit"
+                <ul className="text-xs space-y-1.5 mt-2 list-disc list-inside text-amber-100">
+                  <li>
+                    <strong className="text-amber-300">Navigation Commands:</strong> Say <em>"Next step"</em>, <em>"Previous step"</em>, <em>"Reread"</em>, <em>"Jump to step 3"</em>, <em>"Read ingredients"</em>, <em>"Pause"</em>, <em>"Resume"</em>, or <em>"Exit"</em>.
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">Ask the Chef (Wake-Word & Natural Questions):</strong> Say <em>"Hey Chef"</em> (or <em>"Cookie"</em> / <em>"TasteCraft"</em>) followed by your question, or ask directly: <em>"Hey Chef, can I substitute honey with maple syrup?"</em>. Chef confirms out loud and instantly updates the recipe card and instructions mid-cook!
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">Emergency Kitchen Rescue:</strong> If anything burns, smokes, or sticks, simply say <em>"Panic"</em>, <em>"It's burning"</em>, or <em>"Food is sticking"</em> for instant calming emergency instructions.
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">Session Resumption:</strong> If you exit and return, Chef remembers your step and asks whether you want to continue where you left off or start over from the beginning.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 bg-[#140F0C] rounded-xl border border-[#34271D]">
+              <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <strong className="text-[#f5eedf] text-xs block">Anti-Homework Single-Decision Kitchen:</strong>
+                <span className="text-xs text-[#a89988]">
+                  Zero decision fatigue. Tap the <strong>"Anti-Homework Meal"</strong> button at the top of the meal plan board, enter 1 to 3 ingredients you have on hand, and get a single high-confidence culinary commitment with sensorial voice guidance instead of scrolling 20 endless links.
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'cooking-mode-deepdive',
+      title: 'Kitchen Companion: Voice Chef & Cooking Mode',
+      icon: <Mic className="w-5 h-5 text-amber-400" />,
+      badge: 'Interactive AI',
+      content: (
+        <div className="space-y-4 text-sm text-[#c8bba9] leading-relaxed">
+          <p>
+            TasteCraft's Voice Cooking Mode is engineered like having a professional sous chef standing beside you at the stove:
+          </p>
+
+          <div className="space-y-3">
+            <div className="p-3.5 bg-[#140F0C] border border-[#34271D] rounded-xl">
+              <div className="font-semibold text-[#f5eedf] text-sm mb-1 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-600 text-stone-950 text-xs flex items-center justify-center font-bold">1</span>
+                Wake-Word & Smart Question Filter
+              </div>
+              <p className="text-xs text-[#a89988]">
+                To prevent ambient kitchen chit-chat or background television from triggering unwanted responses, Chef requires either a wake-word (<em>"Hey Chef"</em>, <em>"Chef"</em>, <em>"TasteCraft"</em>, <em>"Cookie"</em>) or an explicit culinary query (e.g. <em>"I don't have honey..."</em>, <em>"Can I replace..."</em>). When you speak the hotword alone, Chef responds <em>"I'm listening, go ahead!"</em> and listens for your follow-up.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-[#140F0C] border border-[#34271D] rounded-xl">
+              <div className="font-semibold text-[#f5eedf] text-sm mb-1 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-600 text-stone-950 text-xs flex items-center justify-center font-bold">2</span>
+                On-The-Fly Ingredient & Step Adaptation
+              </div>
+              <p className="text-xs text-[#a89988]">
+                Missing an item? Say <em>"Hey Chef, can I substitute honey with maple syrup?"</em> or <em>"Add broccoli to the recipe"</em>. Chef maintains continuous multi-turn conversational context, confirms the adjustment out loud, and automatically updates the recipe's ingredient amounts, units, and instructions on the screen without leaving Cooking Mode!
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-[#140F0C] border border-[#34271D] rounded-xl">
+              <div className="font-semibold text-[#f5eedf] text-sm mb-1 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-600 text-stone-950 text-xs flex items-center justify-center font-bold">3</span>
+                Sensorial Cookware Coaching
+              </div>
+              <p className="text-xs text-[#a89988]">
+                Select your pan type at the top (<em>Stainless Steel, Cast Iron, Non-Stick, Sheet Pan</em>). When preheating oil or searing, Chef provides tactile thermal tips (e.g. Leidenfrost water-drop test for stainless, radiant thermal cues for cast iron) right on step 1 so food never sticks or burns.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-[#140F0C] border border-[#34271D] rounded-xl">
+              <div className="font-semibold text-[#f5eedf] text-sm mb-1 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-600 text-stone-950 text-xs flex items-center justify-center font-bold">4</span>
+                Voice Speed & Theme Controls
+              </div>
+              <p className="text-xs text-[#a89988]">
+                Adjust reading pacing with the <strong>1.0x / 1.15x / 1.3x</strong> voice speed toggle in the header. Switch between the cozy <strong>Biscuit Cream Light Theme</strong> and the deep <strong>Espresso Dark Theme</strong> anytime to match your kitchen lighting.
+              </p>
             </div>
           </div>
         </div>
@@ -419,7 +495,7 @@ export const UserGuideView: React.FC = () => {
       </div>
 
       {/* Quick Topics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
         {sections.map(s => (
           <button
             key={s.id}

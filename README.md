@@ -1,67 +1,110 @@
-# 🍳 TasteCraft — AI-First Household Meal Planner & Grocery Copilot
+# 🍳 TasteCraft — AI-First Household Meal Planner & Kitchen Voice Copilot
 
-TasteCraft is an AI-first weekly meal planner and smart grocery list manager built specifically for households and couples. It is designed to run seamlessly on your laptop with your **Hermes agent** (or any OpenAI-compatible LLM endpoint), providing instant mobile access for both **iPhone (iOS)** and **Android** without app store friction, plus an optional **Telegram Bot** for shared chat.
-
----
-
-## ✨ Features
-
-- **💬 AI-First Conversational Co-Pilot:** 
-  Discuss cravings, dietary goals (*"under 30 minutes"*, *"one-pot only"*, *"low-carb"*, *"kid friendly"*), or ingredients to use up. The AI tailors full recipes with exact measurements and step-by-step methods.
-- **📅 Interactive Weekly Meal Plan:**
-  Visual Monday–Sunday board. Tap any meal to view full recipe cards, swap days, or edit manually.
-- **🎬 Cooking Videos & Food Photo Enrichment:**
-  TasteCraft automatically searches for real-world cooking video tutorials (YouTube), appetizing dish photography, and community recipe blogs (Serious Eats, Budget Bytes, RecipeTin) to supplement your AI-tailored recipes.
-- **🛒 Manageable, Consolidated Grocery List:**
-  Automatically aggregates ingredients across recipes and categorizes them by store aisle (*Produce, Meat & Seafood, Dairy, Bakery, Pantry, Spices, Frozen*). Tap to check off items while in the supermarket. Includes manual "+ Add Item" support for staples, snacks, and toiletries.
-- **📱 Zero-Friction Mobile App (PWA):**
-  Works out of the box on iPhone and Android via Progressive Web App (PWA). Just open the link and tap *"Add to Home Screen"* for a native full-screen app experience.
-- **🤖 Telegram Bot Integration (Optional):**
-  Connect a Telegram bot so you and your partner can plan meals from a shared Telegram chat or send quick grocery additions.
-- **🦙 Hermes & Local LLM Ready:**
-  Pre-configured to connect to your local Hermes agent or any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, OpenRouter, etc.).
+TasteCraft is an AI-first weekly meal planner, smart grocery list manager, and interactive culinary voice coach built specifically for households and couples. It is designed to run seamlessly on your local workstation with your **Hermes agent** (or any OpenAI-compatible LLM endpoint), providing instant cross-device mobile access for **iPhone (iOS)**, **Android (Native APK & PWA)**, and **Desktop Web** without app store friction, plus an optional **Telegram Bot** for shared household chat.
 
 ---
 
-## 🏗️ Architecture
+## ✨ Core Features & Highlights
+
+- **🎙️ Hands-Free Voice Cooking Mode:**
+  - **Your Kitchen Sous-Chef:** Tap *"🎙️ Cook"* on any meal card to launch a full-screen, landscape-optimized, high-contrast kitchen view with zero screen timeouts.
+  - **Multi-Turn Conversational AI:** Talk directly to the chef using wake-words (*"Hey Chef"*, *"Chef"*, *"TasteCraft"*, or *"Cookie"*) or direct cooking questions. Chef maintains memory across turns (e.g. asking for a substitute, then saying *"Yes, use that"*).
+  - **On-The-Fly Recipe Adaptation:** Ask to swap or add ingredients mid-cook (*"Hey Chef, can I substitute honey with maple syrup?"*). Chef speaks verbal confirmation and dynamically updates the recipe's ingredient cards, amounts, and step instructions in place.
+  - **Edge Neural Text-to-Speech:** High-fidelity, warm speech streaming via Edge Neural TTS (`en-US-AvaNeural`) with word-by-word visual highlighting and speed toggles (1.0x, 1.15x, 1.3x).
+  - **Sensorial Cookware Coaching:** Thermal guidance tailored to your pan (*Stainless Steel Leidenfrost water-drop test, Cast Iron radiant heat, Non-Stick temperature safety, Sheet Pan spacing*).
+  - **Emergency Panic Rescue:** One-touch or voice-triggered (*"Panic"*, *"It's smoking"*, *"Food is sticking"*) emergency intervention advice.
+  - **Session Resume:** Smart state memory prompts you to continue where you left off or start over whenever re-entering cooking mode.
+
+- **⚡ Anti-Homework Single-Decision Kitchen:**
+  - Eradicates recipe decision fatigue. Enter 1 to 3 ingredients you have on hand in your fridge or pantry, and get a single, high-confidence dinner commitment complete with rich photography, video tutorials, and interactive voice guidance—no scrolling through 20 endless blog links.
+
+- **💬 Conversational Household Copilot:**
+  - Chat about cravings, dietary restrictions (*"under 30 minutes"*, *"high-protein"*, *"dairy-free"*, *"one-pot only"*), or ingredients to use up. Voice-to-text dictation lets you speak your thoughts into the chat box hands-free.
+
+- **📅 Weekly Meal Plan & Past 50 Meal History:**
+  - Visual Monday–Sunday board. Tap any meal to view full recipe cards, swap days, or edit manually.
+  - Persistent meal history log storing up to 50 previous dinners with one-click pinning and re-planning.
+
+- **🛒 Smart Consolidated Grocery List:**
+  - Automatic ingredient aggregation across recipes categorized by store aisle (*Produce, Meat & Seafood, Dairy, Bakery, Pantry, Spices, Frozen*).
+  - **Partial Stock Tracking:** Built-in steppers track items you already have on hand (*"Have 1 of 2 • Need 1 more"*).
+  - **Manual Item Immunity:** Groceries added manually or via chat (*milk, eggs, snacks*) are preserved through meal plan wipes or changes.
+  - **Custom Store Tagging:** Tag items for Amazon, Fred Meyer, Trader Joe's, Safeway, Costco, etc., with dedicated aisle filter tabs.
+  - **Cleared History:** Recovers up to 200 checked/cleared items with a single tap.
+
+- **🎨 Dual Adaptive Themes:**
+  - **Biscuit Light Theme:** Warm cookie cream & linen palette (`#FAF6EF`), soft amber borders, high-contrast typography, and light ribbons.
+  - **Espresso Dark Theme:** Deep roasted espresso & dark bronze backdrop (`#0D0A08`) for night cooking.
+
+- **📱 Multi-Platform Deployment:**
+  - **Android Native App:** Compiled standalone debug APK (`TasteCraft.apk`) with native hardware microphone and keep-awake permissions.
+  - **Progressive Web App (PWA):** Instant home-screen install on iOS Safari and Android Chrome.
+  - **Telegram Bot (Optional):** Plan meals and append groceries from a shared family group chat.
+
+---
+
+## 🏛️ Technical Architecture
 
 ```
-hrb-meal-planning/
+hrb-meal-planner/
 ├── backend/
 │   ├── app/
-│   │   ├── api/            # REST API (Chat, Meal Plan, Grocery, Media Search)
-│   │   ├── db/             # JSON State Persistence (Meal plan, groceries, chat history)
-│   │   ├── models/         # Pydantic Schemas
-│   │   ├── services/       # LLM Agent, Grocery Engine, Media Search, Telegram Bot
-│   │   ├── config.py       # Configuration loader
-│   │   └── main.py         # FastAPI application with static PWA serving
-│   ├── data/               # Persistent JSON state on disk
-│   ├── run.py              # Launcher script
-│   └── requirements.txt
+│   │   ├── api/
+│   │   │   ├── chat.py             # Multi-turn chat copilot & recipe generator
+│   │   │   ├── meal_plan.py        # Weekly board CRUD, history log, & pinning
+│   │   │   ├── grocery.py          # Aisle aggregation, partial stock, store filters
+│   │   │   ├── media.py            # Cooking video tutorials & photo enrichment
+│   │   │   ├── settings.py         # Household dietary pills & custom store profiles
+│   │   │   └── voice.py            # Ultra-fast voice assistant & Edge Neural TTS proxy
+│   │   ├── db/                     # Atomic JSON file persistence (app_state.json)
+│   │   ├── models/                 # Pydantic data schemas
+│   │   ├── services/               # LLM orchestrator, grocery engine, Telegram bot
+│   │   ├── config.py               # Settings loader & environment variables
+│   │   └── main.py                 # FastAPI app, CORS, and static bundle serving
+│   ├── data/                       # Local database files on disk
+│   ├── run.py                      # Multi-interface server runner (0.0.0.0:8000)
+│   └── requirements.txt            # Python dependencies (FastAPI, uvicorn, edge-tts, etc.)
+│
 ├── frontend/
+│   ├── android/                    # Capacitor Android Studio native project
+│   │   └── app/build/outputs/apk/  # Native Android APK build outputs
 │   ├── src/
-│   │   ├── components/     # ChatCopilot, MealPlanBoard, GroceryListView, Modals
-│   │   ├── services/       # API client
-│   │   └── App.tsx         # Main application container
-│   ├── public/             # PWA manifest.json & app icons
-│   └── dist/               # Production build served directly by FastAPI
+│   │   ├── components/
+│   │   │   ├── AntiHomeworkBuilder.tsx # Single-decision ingredient meal generator
+│   │   │   ├── ChatCopilot.tsx         # AI chat drawer with streaming dictation
+│   │   │   ├── GroceryListView.tsx     # Smart grocery manager with partial stock
+│   │   │   ├── MealPlanBoard.tsx       # 7-day meal plan grid with recipe cards
+│   │   │   ├── RecipeDetailModal.tsx   # Detailed recipe overview modal
+│   │   │   ├── SettingsModal.tsx       # Custom stores, dietary preferences, copy plan
+│   │   │   ├── UserGuideView.tsx       # Comprehensive in-app documentation & search
+│   │   │   └── VoiceCookingMode.tsx    # Hands-free kitchen voice coaching assistant
+│   │   ├── services/
+│   │   │   ├── api.ts                  # Typed REST API service layer
+│   │   │   └── useSpeechSynthesis.ts   # Edge Neural TTS client with Web Speech fallback
+│   │   ├── types/                      # TypeScript domain definitions
+│   │   ├── App.tsx                     # Main layout, tabs, and theme state
+│   │   └── index.css                   # Tailwind CSS & theme definitions
+│   ├── dist/                           # Production static web assets & TasteCraft.apk
+│   ├── capacitor.config.json           # Native Android container configuration
+│   └── package.json                    # React 18, Vite 5, Tailwind CSS, Capacitor 6
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Installation
 
 ### 1. Backend Setup
 
 ```bash
 cd backend
-# Create virtual environment (if not already created)
-python -m venv venv
 
-# Activate virtual environment
+# Create and activate virtual environment
 # Windows:
+python -m venv venv
 .\venv\Scripts\activate
-# Mac/Linux:
+
+# macOS / Linux:
+python3 -m venv venv
 source venv/bin/activate
 
 # Install dependencies
@@ -70,71 +113,87 @@ pip install -r requirements.txt
 
 ### 2. Configure Environment (`.env`)
 
-Copy `backend/.env.example` to `backend/.env` and adjust your LLM endpoint:
+Create or update `backend/.env`:
 
 ```env
-# LLM Endpoint (Point to your Hermes agent)
+# LLM Endpoint (Point to Hermes, Ollama, vLLM, LM Studio, or OpenRouter)
 LLM_BASE_URL=http://localhost:11434/v1
 LLM_API_KEY=hermes
 LLM_MODEL=hermes-3-llama-3.1-8b
 
-# Telegram Bot Token (Optional, from @BotFather)
-TELEGRAM_BOT_TOKEN=
-
-# Host and Port (0.0.0.0 enables LAN mobile access)
+# Host and Port (0.0.0.0 binds to all network interfaces for LAN phone access)
 HOST=0.0.0.0
 PORT=8000
+
+# Optional Telegram Bot Token (from @BotFather)
+TELEGRAM_BOT_TOKEN=
 ```
 
-### 3. Run the App
+### 3. Run the Server
 
 ```bash
+# From repository root or backend folder:
 python run.py
 ```
 
-The app will start at `http://0.0.0.0:8000`. Because the frontend is pre-built into `frontend/dist`, visiting `http://localhost:8000` serves both the API and the full interactive UI!
-
-*(Optional: For frontend development with Vite hot-reloading: `cd frontend && npm run dev`)*
+- Local access: `http://localhost:8000`
+- Network access: `http://<your-computer-ip>:8000` (e.g. `http://192.168.1.150:8000`)
 
 ---
 
-## 📲 Installing on Mobile Phones (Cross-Platform)
+## 📲 Installing on Mobile Phones & Tablets
 
-No app store downloads or developer certificates are required.
+### Option A: Native Android APK (Recommended for Kitchen Tablets / Android Phones)
+1. On your Android device, open Chrome and navigate to `http://<your-computer-ip>:8000/TasteCraft.apk`.
+2. Download and install the APK.
+3. Grants full hardware microphone permissions and screen keep-awake capabilities during cooking sessions.
 
-### Find Your Laptop's Local IP
-On Windows, open PowerShell and run:
-```powershell
-ipconfig
+### Option B: Apple iPhone & iPad (Safari PWA)
+1. Connect to your home Wi-Fi network.
+2. Open Safari and navigate to `http://<your-computer-ip>:8000`.
+3. Tap the **Share** button (box with an upward arrow) at the bottom.
+4. Select **"Add to Home Screen"**.
+5. TasteCraft launches full-screen as a standalone native-like app.
+
+### Option C: Remote Supermarket Access (Outside Home Wi-Fi)
+To access your grocery list and meal plan when away from your home network:
+- Install [Tailscale](https://tailscale.com/) on your host machine and mobile devices (zero-config private mesh VPN).
+- Or run a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to point a secure public URL to `localhost:8000`.
+
+---
+
+## 🛠️ Development & Building
+
+### Frontend Development
+```bash
+cd frontend
+npm install
+npm run dev
 ```
-Look for **IPv4 Address** (e.g. `192.168.1.150`).
 
-### On iPhone (Partner):
-1. Connect to the same home Wi-Fi network.
-2. Open Safari and navigate to: `http://192.168.1.150:8000`
-3. Tap the **Share** button (box with an upward arrow at the bottom).
-4. Scroll down and select **"Add to Home Screen"**.
-5. TasteCraft will appear on the home screen as a standalone app!
+### Production Web Build
+```bash
+cd frontend
+npm run build
+```
 
-### On Android (You):
-1. Connect to the same home Wi-Fi network.
-2. Open Google Chrome and navigate to: `http://192.168.1.150:8000`
-3. Tap the **three dots menu (⋮)** in the top right.
-4. Tap **"Install App"** or **"Add to Home screen"**.
-5. TasteCraft will launch with its own app icon and full-screen experience.
+### Compiling Native Android APK
+```bash
+cd frontend
+# Sync web build to Capacitor Android project
+npx cap sync android
 
-> **Tip for Shopping at the Supermarket:** To access the grocery list and meal plan when you're away from home Wi-Fi, install free [Tailscale](https://tailscale.com/) on your laptop and phones, or run a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/).
+# Compile Android APK via Gradle
+cd android
+.\gradlew.bat assembleDebug
+
+# Output APK location:
+# frontend/android/app/build/outputs/apk/debug/app-debug.apk
+# Automatically copied to frontend/dist/TasteCraft.apk for in-app download!
+```
 
 ---
 
-## 🤖 Telegram Bot Setup (Optional)
+## 📄 License & Attribution
 
-If you and your partner want to use Telegram:
-1. Message [@BotFather](https://t.me/BotFather) on Telegram and create a new bot (e.g., `@MyFamilyMealPlannerBot`).
-2. Copy the token provided and paste it into `backend/.env`:
-   ```env
-   TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRstuVWXyz
-   ```
-3. Restart `python run.py`.
-4. Create a Telegram group with you and your partner, add your new bot, and make it an admin.
-5. You can now chat dinner ideas or type `/plan` or `/groceries` directly in Telegram!
+Built with ❤️ for households and couples who love great food, zero decision fatigue, and seamless kitchen teamwork.
