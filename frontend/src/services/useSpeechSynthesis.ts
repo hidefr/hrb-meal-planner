@@ -223,6 +223,32 @@ export function useSpeechSynthesis() {
     if (isNative) {
       try {
         startWordTracking();
+
+        let targetVoiceIndex: number | undefined = undefined;
+        try {
+          const result = await TextToSpeech.getSupportedVoices();
+          if (result && Array.isArray(result.voices) && result.voices.length > 0) {
+            // Find Google Voice 3 (Google TTS en-US Voice 3 identifier is 'iob' or contains 'voice 3' / 'voice_3')
+            const v3Idx = result.voices.findIndex((v: any) => {
+              const name = (v?.name || '').toLowerCase();
+              return name.includes('iob') || name.includes('voice 3') || name.includes('voice_3');
+            });
+            if (v3Idx >= 0) {
+              targetVoiceIndex = v3Idx;
+            } else {
+              // Fallback to any high-quality en-US voice
+              const enIdx = result.voices.findIndex((v: any) => {
+                const lang = (v?.lang || '').toLowerCase();
+                const name = (v?.name || '').toLowerCase();
+                return lang.startsWith('en') && (name.includes('google') || (v?.quality && v.quality >= 400));
+              });
+              if (enIdx >= 0) targetVoiceIndex = enIdx;
+            }
+          }
+        } catch (vErr) {
+          console.warn("Could not query supported Android TTS voices:", vErr);
+        }
+
         await TextToSpeech.speak({
           text: cleanText,
           lang: 'en-US',
@@ -230,6 +256,7 @@ export function useSpeechSynthesis() {
           pitch: 1.0,
           volume: 1.0,
           category: 'ambient',
+          voice: targetVoiceIndex,
         });
         handleFinished();
         return;
